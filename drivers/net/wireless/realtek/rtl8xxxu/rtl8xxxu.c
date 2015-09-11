@@ -1928,10 +1928,10 @@ static int rtl8xxxu_read_efuse(struct rtl8xxxu_priv *priv)
 	u16 val16, efuse_addr, offset;
 	u32 val32;
 
-	val16 = rtl8xxxu_read16(priv, REG_9346CR);
-	if (val16 & EEPROM_ENABLE)
+	val8 = rtl8xxxu_read8(priv, REG_9346CR);
+	if (val8 & EEPROM_ENABLE)
 		priv->has_eeprom = 1;
-	if (val16 & EEPROM_BOOT)
+	if (val8 & EEPROM_BOOT)
 		priv->boot_eeprom = 1;
 
 	val32 = rtl8xxxu_read32(priv, REG_EFUSE_TEST);
