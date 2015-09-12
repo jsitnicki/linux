@@ -2002,8 +2002,8 @@ static int rtl8xxxu_read_efuse(struct rtl8xxxu_priv *priv)
 		/* We have 8 bits to indicate validity */
 		map_addr = offset * 8;
 		if (map_addr >= EFUSE_MAP_LEN_8723A) {
-			dev_warn(dev, "%s: Illegal map_addr (%04x), "
-				 "efuse corrupt!\n",
+			dev_warn(dev,
+				 "%s: Illegal map_addr (%04x), efuse corrupt!\n",
 				 __func__, map_addr);
 			ret = -EINVAL;
 			goto exit;
