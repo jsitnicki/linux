@@ -42,7 +42,7 @@
 
 #define DRIVER_NAME "rtl8xxxu"
 
-static int rtl8xxxu_debug;
+static int rtl8xxxu_debug = RTL8XXXU_DEBUG_EFUSE;
 static bool rtl8xxxu_ht40_2g;
 
 MODULE_AUTHOR("Jes Sorensen <Jes.Sorensen@redhat.com>");
@@ -1885,6 +1885,72 @@ static int rtl8192cu_parse_efuse(struct rtl8xxxu_priv *priv)
 	return 0;
 }
 
+static int rtl8192eu_parse_efuse(struct rtl8xxxu_priv *priv)
+{
+	int i;
+
+	if (priv->efuse_wifi.efuse8192eu.rtl_id != cpu_to_le16(0x8129))
+		return -EINVAL;
+
+	ether_addr_copy(priv->mac_addr, priv->efuse_wifi.efuse8192eu.mac_addr);
+
+	memcpy(priv->cck_tx_power_index_A,
+	       priv->efuse_wifi.efuse8192eu.cck_tx_power_index_A,
+	       sizeof(priv->cck_tx_power_index_A));
+	memcpy(priv->cck_tx_power_index_B,
+	       priv->efuse_wifi.efuse8192eu.cck_tx_power_index_B,
+	       sizeof(priv->cck_tx_power_index_B));
+
+	memcpy(priv->ht40_1s_tx_power_index_A,
+	       priv->efuse_wifi.efuse8192eu.ht40_1s_tx_power_index_A,
+	       sizeof(priv->ht40_1s_tx_power_index_A));
+	memcpy(priv->ht40_1s_tx_power_index_B,
+	       priv->efuse_wifi.efuse8192eu.ht40_1s_tx_power_index_B,
+	       sizeof(priv->ht40_1s_tx_power_index_B));
+#if 0
+	memcpy(priv->ht40_2s_tx_power_index_diff,
+	       priv->efuse_wifi.efuse8192eu.ht40_2s_tx_power_index_diff,
+	       sizeof(priv->ht40_2s_tx_power_index_diff));
+
+	memcpy(priv->ht20_tx_power_index_diff,
+	       priv->efuse_wifi.efuse8192eu.ht20_tx_power_index_diff,
+	       sizeof(priv->ht20_tx_power_index_diff));
+	memcpy(priv->ofdm_tx_power_index_diff,
+	       priv->efuse_wifi.efuse8192eu.ofdm_tx_power_index_diff,
+	       sizeof(priv->ofdm_tx_power_index_diff));
+
+	memcpy(priv->ht40_max_power_offset,
+	       priv->efuse_wifi.efuse8192eu.ht40_max_power_offset,
+	       sizeof(priv->ht40_max_power_offset));
+	memcpy(priv->ht20_max_power_offset,
+	       priv->efuse_wifi.efuse8192eu.ht20_max_power_offset,
+	       sizeof(priv->ht20_max_power_offset));
+#endif
+
+	dev_info(&priv->udev->dev, "Vendor: %.7s\n",
+		 priv->efuse_wifi.efuse8192eu.vendor_name);
+	dev_info(&priv->udev->dev, "Product: %.11s\n",
+		 priv->efuse_wifi.efuse8192eu.device_name);
+	dev_info(&priv->udev->dev, "Serial: %.11s\n",
+		 priv->efuse_wifi.efuse8192eu.serial);
+
+	if (rtl8xxxu_debug & RTL8XXXU_DEBUG_EFUSE) {
+		unsigned char *raw = priv->efuse_wifi.raw;
+
+		dev_info(&priv->udev->dev,
+			 "%s: dumping efuse (0x%02zx bytes):\n",
+			 __func__, sizeof(struct rtl8192eu_efuse));
+		for (i = 0; i < sizeof(struct rtl8192eu_efuse); i += 8) {
+			dev_info(&priv->udev->dev, "%02x: "
+				 "%02x %02x %02x %02x %02x %02x %02x %02x\n", i,
+				 raw[i], raw[i + 1], raw[i + 2],
+				 raw[i + 3], raw[i + 4], raw[i + 5],
+				 raw[i + 6], raw[i + 7]);
+		}
+	}
+	return -EINVAL;
+}
+
 static int
 rtl8xxxu_read_efuse8(struct rtl8xxxu_priv *priv, u16 offset, u8 *data)
 {
@@ -1966,7 +2032,7 @@ static int rtl8xxxu_read_efuse(struct rtl8xxxu_priv *priv)
 	}
 
 	/* Default value is 0xff */
-	memset(priv->efuse_wifi.raw, 0xff, EFUSE_MAP_LEN_8723A);
+	memset(priv->efuse_wifi.raw, 0xff, EFUSE_MAP_LEN);
 
 	efuse_addr = 0;
 	while (efuse_addr < EFUSE_REAL_CONTENT_LEN_8723A) {
@@ -1998,7 +2064,7 @@ static int rtl8xxxu_read_efuse(struct rtl8xxxu_priv *priv)
 
 			/* We have 8 bits to indicate validity */
 			map_addr = offset * 8;
-			if (map_addr >= EFUSE_MAP_LEN_8723A) {
+			if (map_addr >= EFUSE_MAP_LEN) {
 				dev_warn(dev, "%s: Illegal map_addr (%04x), "
 					 "efuse corrupt!\n",
 					 __func__, map_addr);
@@ -2222,6 +2288,24 @@ static int rtl8192cu_load_firmware(struct rtl8xxxu_priv *priv)
 	char *fw_name;
 	int ret;
 
+	if (!priv->vendor_umc)
+		fw_name = "rtlwifi/rtl8192cufw_TMSC.bin";
+	else if (priv->chip_cut || priv->rtlchip == 0x8192c)
+		fw_name = "rtlwifi/rtl8192cufw_B.bin";
+	else
+		fw_name = "rtlwifi/rtl8192cufw_A.bin";
+
+	ret = rtl8xxxu_load_firmware(priv, fw_name);
+
+	return ret;
+}
+
+static int rtl8192eu_load_firmware(struct rtl8xxxu_priv *priv)
+{
+	char *fw_name;
+	int ret;
+
+	return -EBUSY;
 	if (!priv->vendor_umc)
 		fw_name = "rtlwifi/rtl8192cufw_TMSC.bin";
 	else if (priv->chip_cut || priv->rtlchip == 0x8192c)
@@ -5831,6 +5915,13 @@ static struct rtl8xxxu_fileops rtl8192cu_fops = {
 	.writeN_block_size = 128,
 };
 
+static struct rtl8xxxu_fileops rtl8192eu_fops = {
+	.parse_efuse = rtl8192eu_parse_efuse,
+	.load_firmware = rtl8192eu_load_firmware,
+	.power_on = rtl8192cu_power_on,
+	.writeN_block_size = 128,
+};
+
 static struct usb_device_id dev_table[] = {
 {USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_REALTEK, 0x8724, 0xff, 0xff, 0xff),
 	.driver_info = (unsigned long)&rtl8723au_fops},
@@ -5847,6 +5938,8 @@ static struct usb_device_id dev_table[] = {
 /* Tested by Larry Finger */
 {USB_DEVICE_AND_INTERFACE_INFO(0x7392, 0x7811, 0xff, 0xff, 0xff),
 	.driver_info = (unsigned long)&rtl8192cu_fops},
+{USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_REALTEK, 0x818b, 0xff, 0xff, 0xff),
+	.driver_info = (unsigned long)&rtl8192eu_fops},
 #ifdef CONFIG_RTL8XXXU_UNTESTED
 /* Currently untested 8188 series devices */
 {USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_REALTEK, 0x8191, 0xff, 0xff, 0xff),
