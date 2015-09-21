@@ -362,6 +362,8 @@
 #define REG_TXDMA_OFFSET_CHK		0x020c
 #define REG_TXDMA_STATUS		0x0210
 #define REG_RQPN_NPQ			0x0214
+#define  RQPN_NPQ_SHIFT			0
+#define  RQPN_EPQ_SHIFT			16
 
 #define REG_AUTO_LLT			0x0224
 #define  AUTO_LLT_INIT_LLT		BIT(16)
