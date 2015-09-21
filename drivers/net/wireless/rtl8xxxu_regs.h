@@ -363,6 +363,9 @@
 #define REG_TXDMA_STATUS		0x0210
 #define REG_RQPN_NPQ			0x0214
 
+#define REG_AUTO_LLT			0x0224
+#define  AUTO_LLT_INIT_LLT		BIT(16)
+
 /* 0x0280 ~ 0x02FF	RXDMA Configuration */
 #define REG_RXDMA_AGG_PG_TH		0x0280
 #define REG_RXPKT_NUM			0x0284
