@@ -5715,30 +5715,6 @@ rtl8xxxu_ampdu_action(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	return 0;
 }
 
-/*
- * The driver uses IEEE80211_HW_HAS_RATE_CONTROL, which means flags for
- * things like short preamble are not provided to rtl8xxxu_tx(). To keep
- * track of this for rtl8xxxu_tx(), add a private sta and store the
- * information there.
- */
-static int rtl8xxxu_sta_add(struct ieee80211_hw *hw,
-			    struct ieee80211_vif *vif,
-			    struct ieee80211_sta *sta)
-{
-	struct rtl8xxxu_sta_priv *sta_priv;
-
-	sta_priv = (struct rtl8xxxu_sta_priv *)sta->drv_priv;
-
-	return 0;
-}
-
-static int rtl8xxxu_sta_remove(struct ieee80211_hw *hw,
-			       struct ieee80211_vif *vif,
-			       struct ieee80211_sta *sta)
-{
-	return 0;
-}
-
 static int rtl8xxxu_start(struct ieee80211_hw *hw)
 {
 	struct rtl8xxxu_priv *priv = hw->priv;
@@ -5862,8 +5838,6 @@ static const struct ieee80211_ops rtl8xxxu_ops = {
 	.sw_scan_complete = rtl8xxxu_sw_scan_complete,
 	.set_key = rtl8xxxu_set_key,
 	.ampdu_action = rtl8xxxu_ampdu_action,
-	.sta_add = rtl8xxxu_sta_add,
-	.sta_remove = rtl8xxxu_sta_remove,
 };
 
 static int rtl8xxxu_parse_usb(struct rtl8xxxu_priv *priv,
@@ -6069,7 +6043,6 @@ static int rtl8xxxu_probe(struct usb_interface *interface,
 	SET_IEEE80211_PERM_ADDR(hw, priv->mac_addr);
 
 	hw->extra_tx_headroom = sizeof(struct rtl8xxxu_tx_desc);
-	hw->sta_data_size = sizeof(struct rtl8xxxu_sta_priv);
 	ieee80211_hw_set(hw, SIGNAL_DBM);
 	/*
 	 * The firmware handles rate control

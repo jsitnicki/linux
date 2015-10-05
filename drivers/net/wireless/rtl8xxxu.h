@@ -714,9 +714,6 @@ struct rtl8xxxu_tx_urb {
 	struct list_head list;
 };
 
-struct rtl8xxxu_sta_priv {
-};
-
 struct rtl8xxxu_fileops {
 	int (*parse_efuse) (struct rtl8xxxu_priv *priv);
 	int (*load_firmware) (struct rtl8xxxu_priv *priv);
