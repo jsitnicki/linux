@@ -4747,7 +4747,6 @@ rtl8xxxu_bss_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	struct rtl8xxxu_priv *priv = hw->priv;
 	struct device *dev = &priv->udev->dev;
 	struct ieee80211_sta *sta;
-	struct rtl8xxxu_sta_priv *sta_priv;
 	u32 val32;
 	u8 val8;
 
@@ -4831,17 +4830,6 @@ rtl8xxxu_bss_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		else
 			val32 &= ~RSR_ACK_SHORT_PREAMBLE;
 		rtl8xxxu_write32(priv, REG_RESPONSE_RATE_SET, val32);
-
-		rcu_read_lock();
-		sta = ieee80211_find_sta(vif, bss_conf->bssid);
-		if (sta) {
-			sta_priv = (struct rtl8xxxu_sta_priv *)sta->drv_priv;
-			if (bss_conf->use_short_preamble)
-				sta_priv->short_preamble = true;
-			else
-				sta_priv->short_preamble = false;
-		}
-		rcu_read_unlock();
 	}
 
 	if (changed & BSS_CHANGED_ERP_SLOT) {
@@ -5056,7 +5044,7 @@ static void rtl8xxxu_tx(struct ieee80211_hw *hw,
 	struct rtl8xxxu_tx_desc *tx_desc;
 	struct rtl8xxxu_tx_urb *tx_urb;
 	struct ieee80211_sta *sta = NULL;
-	struct rtl8xxxu_sta_priv *sta_priv = NULL;
+	struct ieee80211_vif *vif = tx_info->control.vif;
 	struct device *dev = &priv->udev->dev;
 	u32 queue, rate;
 	u16 pktlen = skb->len;
@@ -5092,10 +5080,8 @@ static void rtl8xxxu_tx(struct ieee80211_hw *hw,
 
 	tx_info->rate_driver_data[0] = hw;
 
-	if (control && control->sta) {
+	if (control && control->sta)
 		sta = control->sta;
-		sta_priv = (struct rtl8xxxu_sta_priv *)sta->drv_priv;
-	}
 
 	tx_desc = (struct rtl8xxxu_tx_desc *)
 		skb_push(skb, sizeof(struct rtl8xxxu_tx_desc));
@@ -5157,7 +5143,7 @@ static void rtl8xxxu_tx(struct ieee80211_hw *hw,
 	if (ieee80211_is_data_qos(hdr->frame_control))
 		tx_desc->txdw4 |= cpu_to_le32(TXDESC_QOS);
 	if (rate_flag & IEEE80211_TX_RC_USE_SHORT_PREAMBLE ||
-	    (sta_priv && sta_priv->short_preamble))
+	    (sta && vif && vif->bss_conf.use_short_preamble))
 		tx_desc->txdw4 |= cpu_to_le32(TXDESC_SHORT_PREAMBLE);
 	if (rate_flag & IEEE80211_TX_RC_SHORT_GI ||
 	    (ieee80211_is_data_qos(hdr->frame_control) &&
@@ -5743,7 +5729,6 @@ static int rtl8xxxu_sta_add(struct ieee80211_hw *hw,
 
 	sta_priv = (struct rtl8xxxu_sta_priv *)sta->drv_priv;
 
-	sta_priv->short_preamble = false;
 	return 0;
 }
 
