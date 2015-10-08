@@ -55,6 +55,8 @@ MODULE_FIRMWARE("rtlwifi/rtl8192cufw_A.bin");
 MODULE_FIRMWARE("rtlwifi/rtl8192cufw_B.bin");
 MODULE_FIRMWARE("rtlwifi/rtl8192cufw_TMSC.bin");
 MODULE_FIRMWARE("rtlwifi/rtl8192eu_nic.bin");
+MODULE_FIRMWARE("rtlwifi/rtl8723bu_nic.bin");
+MODULE_FIRMWARE("rtlwifi/rtl8723bu_bt.bin");
 
 module_param_named(debug, rtl8xxxu_debug, int, 0600);
 MODULE_PARM_DESC(debug, "Set debug mask");
@@ -1700,11 +1702,17 @@ static int rtl8xxxu_identify_chip(struct rtl8xxxu_priv *priv)
 	}
 
 	if (val32 & SYS_CFG_BT_FUNC) {
-		sprintf(priv->chip_name, "8723AU");
+		if (priv->chip_cut >= 3) {
+			sprintf(priv->chip_name, "8723BU");
+			priv->rtlchip = 0x8723b;
+		} else {
+			sprintf(priv->chip_name, "8723AU");
+			priv->rtlchip = 0x8723a;
+		}
+
 		priv->rf_paths = 1;
 		priv->rx_paths = 1;
 		priv->tx_paths = 1;
-		priv->rtlchip = 0x8723a;
 
 		val32 = rtl8xxxu_read32(priv, REG_MULTI_FUNC_CTRL);
 		if (val32 & MULTI_WIFI_FUNC_EN)
@@ -1806,6 +1814,7 @@ static int rtl8xxxu_identify_chip(struct rtl8xxxu_priv *priv)
 	 */
 	if (!priv->ep_tx_count) {
 		switch (priv->nr_out_eps) {
+		case 4:
 		case 3:
 			priv->ep_tx_low_queue = 1;
 			priv->ep_tx_count++;
@@ -2329,6 +2338,7 @@ static int rtl8xxxu_load_firmware(struct rtl8xxxu_priv *priv, char *fw_name)
 	case 0x92e0:
 	case 0x92c0:
 	case 0x88c0:
+	case 0x5300:
 	case 0x2300:
 		break;
 	default:
@@ -2365,6 +2375,20 @@ static int rtl8723au_load_firmware(struct rtl8xxxu_priv *priv)
 	default:
 		return -EINVAL;
 	}
+
+	ret = rtl8xxxu_load_firmware(priv, fw_name);
+	return ret;
+}
+
+static int rtl8723bu_load_firmware(struct rtl8xxxu_priv *priv)
+{
+	char *fw_name;
+	int ret;
+
+	if (priv->enable_bluetooth)
+		fw_name = "rtlwifi/rtl8723bu_bt.bin";
+	else
+		fw_name = "rtlwifi/rtl8723bu_nic.bin";
 
 	ret = rtl8xxxu_load_firmware(priv, fw_name);
 	return ret;
@@ -2591,7 +2615,7 @@ static int rtl8xxxu_init_phy_bb(struct rtl8xxxu_priv *priv)
 	else
 		rtl8xxxu_init_phy_regs(priv, rtl8xxx_agc_standard_table);
 
-	if (priv->rtlchip == 0x8723a &&
+	if ((priv->rtlchip == 0x8723a || priv->rtlchip == 0x8723b) &&
 	    priv->efuse_wifi.efuse8723.version >= 0x01) {
 		val32 = rtl8xxxu_read32(priv, REG_MAC_PHY_CTRL);
 
@@ -6103,6 +6127,14 @@ static struct rtl8xxxu_fileops rtl8723au_fops = {
 	.writeN_block_size = 1024,
 };
 
+static struct rtl8xxxu_fileops rtl8723bu_fops = {
+	.parse_efuse = rtl8723au_parse_efuse,
+	.load_firmware = rtl8723bu_load_firmware,
+	.power_on = rtl8723au_power_on,
+	.llt_init = rtl8xxxu_auto_llt_table,
+	.writeN_block_size = 128,
+};
+
 static struct rtl8xxxu_fileops rtl8192cu_fops = {
 	.parse_efuse = rtl8192cu_parse_efuse,
 	.load_firmware = rtl8192cu_load_firmware,
@@ -6137,6 +6169,8 @@ static struct usb_device_id dev_table[] = {
 	.driver_info = (unsigned long)&rtl8192cu_fops},
 {USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_REALTEK, 0x818b, 0xff, 0xff, 0xff),
 	.driver_info = (unsigned long)&rtl8192eu_fops},
+{USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_REALTEK, 0xb720, 0xff, 0xff, 0xff),
+	.driver_info = (unsigned long)&rtl8723bu_fops},
 #ifdef CONFIG_RTL8XXXU_UNTESTED
 /* Currently untested 8188 series devices */
 {USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_REALTEK, 0x8191, 0xff, 0xff, 0xff),
