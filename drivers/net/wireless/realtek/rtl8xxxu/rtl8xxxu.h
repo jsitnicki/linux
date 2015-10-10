@@ -564,6 +564,22 @@ struct h2c_cmd {
 
 struct rtl8xxxu_fileops;
 
+struct rtl8723au_tx_power {
+	u8 cck_tx_power_index_A[3];	/* 0x10 */
+	u8 cck_tx_power_index_B[3];
+	u8 ht40_1s_tx_power_index_A[3];	/* 0x16 */
+	u8 ht40_1s_tx_power_index_B[3];
+	/*
+	 * The following entries are half-bytes split as:
+	 * bits 0-3: path A, bits 4-7: path B, all values 4 bits signed
+	 */
+	struct rtl8723au_idx ht40_2s_tx_power_index_diff[3];
+	struct rtl8723au_idx ht20_tx_power_index_diff[3];
+	struct rtl8723au_idx ofdm_tx_power_index_diff[3];
+	struct rtl8723au_idx ht40_max_power_offset[3];
+	struct rtl8723au_idx ht20_max_power_offset[3];
+};
+
 struct rtl8xxxu_priv {
 	struct ieee80211_hw *hw;
 	struct usb_device *udev;
@@ -582,19 +598,7 @@ struct rtl8xxxu_priv {
 
 	u8 mac_addr[ETH_ALEN];
 	char chip_name[8];
-	u8 cck_tx_power_index_A[3];	/* 0x10 */
-	u8 cck_tx_power_index_B[3];
-	u8 ht40_1s_tx_power_index_A[3];	/* 0x16 */
-	u8 ht40_1s_tx_power_index_B[3];
-	/*
-	 * The following entries are half-bytes split as:
-	 * bits 0-3: path A, bits 4-7: path B, all values 4 bits signed
-	 */
-	struct rtl8723au_idx ht40_2s_tx_power_index_diff[3];
-	struct rtl8723au_idx ht20_tx_power_index_diff[3];
-	struct rtl8723au_idx ofdm_tx_power_index_diff[3];
-	struct rtl8723au_idx ht40_max_power_offset[3];
-	struct rtl8723au_idx ht20_max_power_offset[3];
+	struct rtl8723au_tx_power tx_power;
 	u32 chip_cut:4;
 	u32 rom_rev:4;
 	u32 is_multi_func:1;
