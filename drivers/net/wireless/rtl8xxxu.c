@@ -5989,7 +5989,8 @@ static int rtl8xxxu_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 static int
 rtl8xxxu_ampdu_action(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		      enum ieee80211_ampdu_mlme_action action,
-		      struct ieee80211_sta *sta, u16 tid, u16 *ssn, u8 buf_size)
+		      struct ieee80211_sta *sta, u16 tid, u16 *ssn, u8 buf_size,
+		      bool amsdu)
 {
 	struct rtl8xxxu_priv *priv = hw->priv;
 	struct device *dev = &priv->udev->dev;
