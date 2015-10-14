@@ -1505,21 +1505,21 @@ rtl8723a_set_tx_power(struct rtl8xxxu_priv *priv, int channel, bool ht40)
 	ofdm[0] = tx_power->ht40_1s_index_A[group];
 	ofdm[1] = tx_power->ht40_1s_index_B[group];
 
-	ofdmbase[0] = ofdm[0] +	tx_power->ofdm_index_diff[group].a;
-	ofdmbase[1] = ofdm[1] +	tx_power->ofdm_index_diff[group].b;
+	ofdmbase[0] = ofdm[0] +	tx_power->ofdm_index_diff[group].low;
+	ofdmbase[1] = ofdm[1] +	tx_power->ofdm_index_diff[group].high;
 
 	mcsbase[0] = ofdm[0];
 	mcsbase[1] = ofdm[1];
 	if (!ht40) {
-		mcsbase[0] += tx_power->ht20_index_diff[group].a;
-		mcsbase[1] += tx_power->ht20_index_diff[group].b;
+		mcsbase[0] += tx_power->ht20_index_diff[group].low;
+		mcsbase[1] += tx_power->ht20_index_diff[group].high;
 	}
 
 	if (priv->tx_paths > 1) {
-		if (ofdm[0] > tx_power->ht40_2s_index_diff[group].a)
-			ofdm[0] -= tx_power->ht40_2s_index_diff[group].a;
-		if (ofdm[1] > tx_power->ht40_2s_index_diff[group].b)
-			ofdm[1] -= tx_power->ht40_2s_index_diff[group].b;
+		if (ofdm[0] > tx_power->ht40_2s_index_diff[group].low)
+			ofdm[0] -= tx_power->ht40_2s_index_diff[group].low;
+		if (ofdm[1] > tx_power->ht40_2s_index_diff[group].high)
+			ofdm[1] -= tx_power->ht40_2s_index_diff[group].high;
 	}
 
 	if (rtl8xxxu_debug & RTL8XXXU_DEBUG_CHANNEL)

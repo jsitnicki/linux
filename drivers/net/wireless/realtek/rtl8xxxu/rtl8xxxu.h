@@ -407,13 +407,13 @@ struct rtl8xxxu_firmware_header {
 /*
  * The 8723au has 3 channel groups: 1-3, 4-9, and 10-14
  */
-struct rtl8723au_idx {
+struct nibble_pair {
 #ifdef __LITTLE_ENDIAN
-	int	a:4;
-	int	b:4;
+	int	low:4;
+	int	high:4;
 #else
-	int	b:4;
-	int	a:4;
+	int	high:4;
+	int	low:4;
 #endif
 } __attribute__((packed));
 
@@ -428,10 +428,10 @@ struct rtl8723au_efuse {
 	 * The following entries are half-bytes split as:
 	 * bits 0-3: path A, bits 4-7: path B, all values 4 bits signed
 	 */
-	struct rtl8723au_idx ht20_tx_power_index_diff[3];
-	struct rtl8723au_idx ofdm_tx_power_index_diff[3];
-	struct rtl8723au_idx ht40_max_power_offset[3];
-	struct rtl8723au_idx ht20_max_power_offset[3];
+	struct nibble_pair ht20_tx_power_index_diff[3];
+	struct nibble_pair ofdm_tx_power_index_diff[3];
+	struct nibble_pair ht40_max_power_offset[3];
+	struct nibble_pair ht20_max_power_offset[3];
 	u8 channel_plan;		/* 0x28 */
 	u8 tssi_a;
 	u8 thermal_meter;
@@ -482,11 +482,11 @@ struct rtl8192cu_efuse {
 	 * The following entries are half-bytes split as:
 	 * bits 0-3: path A, bits 4-7: path B, all values 4 bits signed
 	 */
-	struct rtl8723au_idx ht40_2s_tx_power_index_diff[3];
-	struct rtl8723au_idx ht20_tx_power_index_diff[3];	/* 0x69 */
-	struct rtl8723au_idx ofdm_tx_power_index_diff[3];
-	struct rtl8723au_idx ht40_max_power_offset[3];		/* 0x6f */
-	struct rtl8723au_idx ht20_max_power_offset[3];
+	struct nibble_pair ht40_2s_tx_power_index_diff[3];
+	struct nibble_pair ht20_tx_power_index_diff[3];		/* 0x69 */
+	struct nibble_pair ofdm_tx_power_index_diff[3];
+	struct nibble_pair ht40_max_power_offset[3];		/* 0x6f */
+	struct nibble_pair ht20_max_power_offset[3];
 	u8 channel_plan;					/* 0x75 */
 	u8 tssi_a;
 	u8 tssi_b;
@@ -573,11 +573,11 @@ struct rtl8723au_tx_power {
 	 * The following entries are half-bytes split as:
 	 * bits 0-3: path A, bits 4-7: path B, all values 4 bits signed
 	 */
-	struct rtl8723au_idx ht40_2s_index_diff[3];
-	struct rtl8723au_idx ht20_index_diff[3];
-	struct rtl8723au_idx ofdm_index_diff[3];
-	struct rtl8723au_idx ht40_max_offset[3];
-	struct rtl8723au_idx ht20_max_offset[3];
+	struct nibble_pair ht40_2s_index_diff[3];
+	struct nibble_pair ht20_index_diff[3];
+	struct nibble_pair ofdm_index_diff[3];
+	struct nibble_pair ht40_max_offset[3];
+	struct nibble_pair ht20_max_offset[3];
 };
 
 struct rtl8xxxu_priv {
