@@ -565,19 +565,19 @@ struct h2c_cmd {
 struct rtl8xxxu_fileops;
 
 struct rtl8723au_tx_power {
-	u8 cck_tx_power_index_A[3];	/* 0x10 */
-	u8 cck_tx_power_index_B[3];
-	u8 ht40_1s_tx_power_index_A[3];	/* 0x16 */
-	u8 ht40_1s_tx_power_index_B[3];
+	u8 cck_index_A[3];	/* 0x10 */
+	u8 cck_index_B[3];
+	u8 ht40_1s_index_A[3];	/* 0x16 */
+	u8 ht40_1s_index_B[3];
 	/*
 	 * The following entries are half-bytes split as:
 	 * bits 0-3: path A, bits 4-7: path B, all values 4 bits signed
 	 */
-	struct rtl8723au_idx ht40_2s_tx_power_index_diff[3];
-	struct rtl8723au_idx ht20_tx_power_index_diff[3];
-	struct rtl8723au_idx ofdm_tx_power_index_diff[3];
-	struct rtl8723au_idx ht40_max_power_offset[3];
-	struct rtl8723au_idx ht20_max_power_offset[3];
+	struct rtl8723au_idx ht40_2s_index_diff[3];
+	struct rtl8723au_idx ht20_index_diff[3];
+	struct rtl8723au_idx ofdm_index_diff[3];
+	struct rtl8723au_idx ht40_max_offset[3];
+	struct rtl8723au_idx ht20_max_offset[3];
 };
 
 struct rtl8xxxu_priv {
