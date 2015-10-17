@@ -679,6 +679,7 @@ struct rtl8xxxu_fileops {
 	int (*parse_efuse) (struct rtl8xxxu_priv *priv);
 	int (*load_firmware) (struct rtl8xxxu_priv *priv);
 	int (*power_on) (struct rtl8xxxu_priv *priv);
+	void (*set_tx_power) (struct rtl8xxxu_priv *priv, int channel, bool ht40);
 	int efuse_len;
 	int writeN_block_size;
 };

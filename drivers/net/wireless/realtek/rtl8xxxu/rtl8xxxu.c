@@ -4223,7 +4223,7 @@ static int rtl8xxxu_init_device(struct ieee80211_hw *hw)
 	/*
 	 * Start out with default power levels for channel 6, 20MHz
 	 */
-	rtl8723a_set_tx_power(priv, 1, false);
+	priv->fops->set_tx_power(priv, 1, false);
 
 	/* Let the 8051 take control of antenna setting */
 	val8 = rtl8xxxu_read8(priv, REG_LEDCFG2);
@@ -5207,7 +5207,7 @@ static int rtl8xxxu_config(struct ieee80211_hw *hw, u32 changed)
 
 		channel = hw->conf.chandef.chan->hw_value;
 
-		rtl8723a_set_tx_power(priv, channel, ht40);
+		priv->fops->set_tx_power(priv, channel, ht40);
 
 		rtl8723au_config_channel(hw);
 	}
@@ -5781,6 +5781,7 @@ static struct rtl8xxxu_fileops rtl8723au_fops = {
 	.parse_efuse = rtl8723au_parse_efuse,
 	.load_firmware = rtl8723au_load_firmware,
 	.power_on = rtl8723au_power_on,
+	.set_tx_power = rtl8723a_set_tx_power,
 	.efuse_len = EFUSE_REAL_CONTENT_LEN_8723A,
 	.writeN_block_size = 1024,
 };
@@ -5789,6 +5790,7 @@ static struct rtl8xxxu_fileops rtl8192cu_fops = {
 	.parse_efuse = rtl8192cu_parse_efuse,
 	.load_firmware = rtl8192cu_load_firmware,
 	.power_on = rtl8192cu_power_on,
+	.set_tx_power = rtl8723a_set_tx_power,
 	.efuse_len = EFUSE_REAL_CONTENT_LEN_8723A,
 	.writeN_block_size = 128,
 };
