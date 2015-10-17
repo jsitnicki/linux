@@ -59,6 +59,9 @@
 #define EFUSE_MAX_SECTION_8723A		32
 #define EFUSE_REAL_CONTENT_LEN_8723A	512
 #define EFUSE_BT_MAP_LEN_8723A		1024
+
+/* One size fits all, that is use the highest value */
+#define EFUSE_MAP_LEN			EFUSE_MAP_LEN_8723A
 #define EFUSE_MAX_WORD_UNIT		4
 
 struct rtl8xxxu_rx_desc {
@@ -649,7 +652,7 @@ struct rtl8xxxu_priv {
 		u8 val8;
 	} usb_buf;
 	union {
-		u8 raw[EFUSE_MAP_LEN_8723A];
+		u8 raw[EFUSE_MAP_LEN];
 		struct rtl8723au_efuse efuse8723;
 		struct rtl8192cu_efuse efuse8192;
 	} efuse_wifi;

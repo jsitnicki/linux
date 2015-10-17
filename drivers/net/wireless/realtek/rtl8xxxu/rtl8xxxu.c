@@ -1976,7 +1976,7 @@ static int rtl8xxxu_read_efuse(struct rtl8xxxu_priv *priv)
 	}
 
 	/* Default value is 0xff */
-	memset(priv->efuse_wifi.raw, 0xff, EFUSE_MAP_LEN_8723A);
+	memset(priv->efuse_wifi.raw, 0xff, EFUSE_MAP_LEN);
 
 	efuse_addr = 0;
 	while (efuse_addr < efuse_len) {
@@ -2008,7 +2008,7 @@ static int rtl8xxxu_read_efuse(struct rtl8xxxu_priv *priv)
 
 		/* We have 8 bits to indicate validity */
 		map_addr = offset * 8;
-		if (map_addr >= EFUSE_MAP_LEN_8723A) {
+		if (map_addr >= EFUSE_MAP_LEN) {
 			dev_warn(dev,
 				 "%s: Illegal map_addr (%04x), efuse corrupt!\n",
 				 __func__, map_addr);
