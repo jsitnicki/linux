@@ -1930,6 +1930,7 @@ rtl8xxxu_read_efuse8(struct rtl8xxxu_priv *priv, u16 offset, u8 *data)
 static int rtl8xxxu_read_efuse(struct rtl8xxxu_priv *priv)
 {
 	struct device *dev = &priv->udev->dev;
+	int efuse_len = priv->fops->efuse_len;
 	int i, ret = 0;
 	u8 val8, word_mask, header, extheader;
 	u16 val16, efuse_addr, offset;
@@ -1978,7 +1979,7 @@ static int rtl8xxxu_read_efuse(struct rtl8xxxu_priv *priv)
 	memset(priv->efuse_wifi.raw, 0xff, EFUSE_MAP_LEN_8723A);
 
 	efuse_addr = 0;
-	while (efuse_addr < EFUSE_REAL_CONTENT_LEN_8723A) {
+	while (efuse_addr < efuse_len) {
 		u16 map_addr;
 
 		ret = rtl8xxxu_read_efuse8(priv, efuse_addr++, &header);
@@ -5780,6 +5781,7 @@ static struct rtl8xxxu_fileops rtl8723au_fops = {
 	.parse_efuse = rtl8723au_parse_efuse,
 	.load_firmware = rtl8723au_load_firmware,
 	.power_on = rtl8723au_power_on,
+	.efuse_len = EFUSE_REAL_CONTENT_LEN_8723A,
 	.writeN_block_size = 1024,
 };
 
@@ -5787,6 +5789,7 @@ static struct rtl8xxxu_fileops rtl8192cu_fops = {
 	.parse_efuse = rtl8192cu_parse_efuse,
 	.load_firmware = rtl8192cu_load_firmware,
 	.power_on = rtl8192cu_power_on,
+	.efuse_len = EFUSE_REAL_CONTENT_LEN_8723A,
 	.writeN_block_size = 128,
 };
 
