@@ -598,7 +598,9 @@ struct rtl8xxxu_priv {
 
 	u8 mac_addr[ETH_ALEN];
 	char chip_name[8];
-	struct rtl8723au_tx_power tx_power;
+	union {
+		struct rtl8723au_tx_power tx_power8723;
+	} tx_power;
 	u32 chip_cut:4;
 	u32 rom_rev:4;
 	u32 is_multi_func:1;

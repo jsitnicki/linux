@@ -1490,7 +1490,7 @@ static void rtl8723au_config_channel(struct ieee80211_hw *hw)
 static void
 rtl8723a_set_tx_power(struct rtl8xxxu_priv *priv, int channel, bool ht40)
 {
-	struct rtl8723au_tx_power *tx_power = &priv->tx_power;
+	struct rtl8723au_tx_power *tx_power = &priv->tx_power.tx_power8723;
 	u8 cck[RTL8723A_MAX_RF_PATHS], ofdm[RTL8723A_MAX_RF_PATHS];
 	u8 ofdmbase[RTL8723A_MAX_RF_PATHS], mcsbase[RTL8723A_MAX_RF_PATHS];
 	u32 val32, ofdm_a, ofdm_b, mcs_a, mcs_b;
@@ -1781,7 +1781,7 @@ static int rtl8xxxu_identify_chip(struct rtl8xxxu_priv *priv)
 static int rtl8723au_parse_efuse(struct rtl8xxxu_priv *priv)
 {
 	struct rtl8723au_efuse *efuse = &priv->efuse_wifi.efuse8723;
-	struct rtl8723au_tx_power *tx_power = &priv->tx_power;
+	struct rtl8723au_tx_power *tx_power = &priv->tx_power.tx_power8723;
 
 	if (efuse->rtl_id != cpu_to_le16(0x8129))
 		return -EINVAL;
@@ -1826,7 +1826,7 @@ static int rtl8723au_parse_efuse(struct rtl8xxxu_priv *priv)
 static int rtl8192cu_parse_efuse(struct rtl8xxxu_priv *priv)
 {
 	struct rtl8192cu_efuse *efuse = &priv->efuse_wifi.efuse8192;
-	struct rtl8723au_tx_power *tx_power = &priv->tx_power;
+	struct rtl8723au_tx_power *tx_power = &priv->tx_power.tx_power8723;
 	int i;
 
 	if (efuse->rtl_id != cpu_to_le16(0x8129))
