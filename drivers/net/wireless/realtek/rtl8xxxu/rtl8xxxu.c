@@ -57,6 +57,7 @@ MODULE_FIRMWARE("rtlwifi/rtl8192cufw_TMSC.bin");
 MODULE_FIRMWARE("rtlwifi/rtl8192eu_nic.bin");
 MODULE_FIRMWARE("rtlwifi/rtl8723bu_nic.bin");
 MODULE_FIRMWARE("rtlwifi/rtl8723bu_bt.bin");
+MODULE_FIRMWARE("rtlwifi/rtl8188eufw.bin");
 
 module_param_named(debug, rtl8xxxu_debug, int, 0600);
 MODULE_PARM_DESC(debug, "Set debug mask");
@@ -2892,7 +2893,14 @@ static int rtl8192eu_load_firmware(struct rtl8xxxu_priv *priv)
 
 static int rtl8188eu_load_firmware(struct rtl8xxxu_priv *priv)
 {
-	return -EOPNOTSUPP; /* Not implemented */
+	char *fw_name;
+	int ret;
+
+	fw_name = "rtlwifi/rtl8188eufw.bin";
+
+	ret = rtl8xxxu_load_firmware(priv, fw_name);
+
+	return ret;
 }
 
 static void rtl8xxxu_firmware_self_reset(struct rtl8xxxu_priv *priv)
