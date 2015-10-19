@@ -60,8 +60,12 @@
 #define EFUSE_REAL_CONTENT_LEN_8723A	512
 #define EFUSE_BT_MAP_LEN_8723A		1024
 
+#define EFUSE_MAP_LEN_88E		512
+#define EFUSE_MAX_SECTION_88E		64
+#define EFUSE_REAL_CONTENT_LEN_88E	256
+
 /* One size fits all, that is use the highest value */
-#define EFUSE_MAP_LEN			EFUSE_MAP_LEN_8723A
+#define EFUSE_MAP_LEN			EFUSE_MAP_LEN_88E
 #define EFUSE_MAX_WORD_UNIT		4
 
 struct rtl8xxxu_rx_desc {

@@ -1597,6 +1597,12 @@ rtl8723a_set_tx_power(struct rtl8xxxu_priv *priv, int channel, bool ht40)
 	}
 }
 
+static void rtl8188eu_set_tx_power(struct rtl8xxxu_priv *priv,
+				   int channel, bool ht40)
+{
+	return; /* Not implemented */
+}
+
 static void rtl8xxxu_set_linktype(struct rtl8xxxu_priv *priv,
 				  enum nl80211_iftype linktype)
 {
@@ -1890,6 +1896,11 @@ static int rtl8192cu_parse_efuse(struct rtl8xxxu_priv *priv)
 		}
 	}
 	return 0;
+}
+
+static int rtl8188eu_parse_efuse(struct rtl8xxxu_priv *priv)
+{
+	return -EOPNOTSUPP; /* Not implemented */
 }
 
 static int
@@ -2233,6 +2244,11 @@ static int rtl8192cu_load_firmware(struct rtl8xxxu_priv *priv)
 	ret = rtl8xxxu_load_firmware(priv, fw_name);
 
 	return ret;
+}
+
+static int rtl8188eu_load_firmware(struct rtl8xxxu_priv *priv)
+{
+	return -EOPNOTSUPP; /* Not implemented */
 }
 
 static void rtl8xxxu_firmware_self_reset(struct rtl8xxxu_priv *priv)
@@ -3917,6 +3933,11 @@ static int rtl8192cu_power_on(struct rtl8xxxu_priv *priv)
 		rtl8xxxu_write32(priv, REG_FPGA0_XCD_RF_PARM, val32);
 	}
 	return 0;
+}
+
+static int rtl8188eu_power_on(struct rtl8xxxu_priv *priv)
+{
+	return -EOPNOTSUPP; /* Not implemented */
 }
 
 static void rtl8xxxu_power_off(struct rtl8xxxu_priv *priv)
@@ -5795,6 +5816,15 @@ static struct rtl8xxxu_fileops rtl8192cu_fops = {
 	.writeN_block_size = 128,
 };
 
+static struct rtl8xxxu_fileops rtl8188eu_fops = {
+	.parse_efuse = rtl8188eu_parse_efuse,
+	.load_firmware = rtl8188eu_load_firmware,
+	.power_on = rtl8188eu_power_on,
+	.set_tx_power = rtl8188eu_set_tx_power,
+	.efuse_len = EFUSE_REAL_CONTENT_LEN_88E,
+	.writeN_block_size = 4,
+};
+
 static struct usb_device_id dev_table[] = {
 {USB_DEVICE_AND_INTERFACE_INFO(USB_VENDOR_ID_REALTEK, 0x8724, 0xff, 0xff, 0xff),
 	.driver_info = (unsigned long)&rtl8723au_fops},
@@ -5895,6 +5925,8 @@ static struct usb_device_id dev_table[] = {
 	.driver_info = (unsigned long)&rtl8192cu_fops},
 {USB_DEVICE_AND_INTERFACE_INFO(0x2019, 0x1201, 0xff, 0xff, 0xff),
 	.driver_info = (unsigned long)&rtl8192cu_fops},
+{USB_DEVICE(USB_VENDOR_ID_REALTEK, 0x8179), /* RTL8188EUS */
+	.driver_info = (unsigned long)&rtl8188eu_fops},
 /* Currently untested 8192 series devices */
 {USB_DEVICE_AND_INTERFACE_INFO(0x04bb, 0x0950, 0xff, 0xff, 0xff),
 	.driver_info = (unsigned long)&rtl8192cu_fops},
