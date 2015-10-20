@@ -507,6 +507,22 @@ struct rtl8192cu_efuse {
 	u8 customer_id;
 };
 
+struct rtl8188eu_efuse {
+	__le16 rtl_id;
+	u8 res0[0x0e];
+	struct {						/* 0x10 */
+		u8 cck_index_A[6];
+		u8 ht40_1s_index_A[5];
+		struct nibble_pair ht20_ofdm_index_diff[1];
+	} tx_power;
+	u8 res1[0xbb];
+	u8 mac_addr[ETH_ALEN];					/* 0xd7 */
+	u8 res2[0x02];
+	u8 vendor_name[7];					/* 0xdf */
+	u8 res3[0x02];
+	u8 device_name[11];					/* 0xe8 */
+};
+
 struct rtl8xxxu_reg8val {
 	u16 reg;
 	u8 val;
@@ -587,6 +603,12 @@ struct rtl8723au_tx_power {
 	struct nibble_pair ht20_max_offset[3];
 };
 
+struct rtl8188eu_tx_power {
+	u8 cck_index_A[6];
+	u8 ht40_1s_index_A[5];
+	struct nibble_pair ht20_ofdm_index_diff[1];
+};
+
 struct rtl8xxxu_priv {
 	struct ieee80211_hw *hw;
 	struct usb_device *udev;
@@ -607,6 +629,7 @@ struct rtl8xxxu_priv {
 	char chip_name[8];
 	union {
 		struct rtl8723au_tx_power tx_power8723;
+		struct rtl8188eu_tx_power tx_power8188;
 	} tx_power;
 	u32 chip_cut:4;
 	u32 rom_rev:4;
@@ -659,6 +682,7 @@ struct rtl8xxxu_priv {
 		u8 raw[EFUSE_MAP_LEN];
 		struct rtl8723au_efuse efuse8723;
 		struct rtl8192cu_efuse efuse8192;
+		struct rtl8188eu_efuse efuse8188;
 	} efuse_wifi;
 	u32 adda_backup[RTL8XXXU_ADDA_REGS];
 	u32 mac_backup[RTL8XXXU_MAC_REGS];

@@ -1900,7 +1900,40 @@ static int rtl8192cu_parse_efuse(struct rtl8xxxu_priv *priv)
 
 static int rtl8188eu_parse_efuse(struct rtl8xxxu_priv *priv)
 {
-	return -EOPNOTSUPP; /* Not implemented */
+	struct rtl8188eu_efuse *efuse = &priv->efuse_wifi.efuse8188;
+	struct rtl8188eu_tx_power *tx_power = &priv->tx_power.tx_power8188;
+
+	if (efuse->rtl_id != cpu_to_le16(0x8129))
+		return -EINVAL;
+
+	ether_addr_copy(priv->mac_addr, efuse->mac_addr);
+
+	memcpy(tx_power->cck_index_A,
+	       efuse->tx_power.cck_index_A,
+	       sizeof(tx_power->cck_index_A));
+
+	memcpy(tx_power->ht40_1s_index_A,
+	       efuse->tx_power.ht40_1s_index_A,
+	       sizeof(tx_power->ht40_1s_index_A));
+
+	memcpy(tx_power->ht20_ofdm_index_diff,
+	       efuse->tx_power.ht20_ofdm_index_diff,
+	       sizeof(tx_power->ht20_ofdm_index_diff));
+
+	dev_info(&priv->udev->dev, "Vendor: %.7s\n",
+		 efuse->vendor_name);
+	dev_info(&priv->udev->dev, "Product: %.11s\n",
+		 efuse->device_name);
+
+	/* XXX: Do we need to read the rf_regulatory flag? */
+
+	if (rtl8xxxu_debug & RTL8XXXU_DEBUG_EFUSE) {
+		print_hex_dump_bytes("rtl8xxxu: ", DUMP_PREFIX_OFFSET,
+				     priv->efuse_wifi.raw,
+				     sizeof(priv->efuse_wifi.raw));
+	}
+
+	return 0;
 }
 
 static int
