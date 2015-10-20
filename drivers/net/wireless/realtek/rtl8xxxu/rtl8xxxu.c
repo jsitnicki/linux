@@ -2483,11 +2483,6 @@ static int rtl8192eu_parse_efuse(struct rtl8xxxu_priv *priv)
 	return 0;
 }
 
-static int rtl8188eu_parse_efuse(struct rtl8xxxu_priv *priv)
-{
-	return -EOPNOTSUPP; /* Not implemented */
-}
-
 static int
 rtl8xxxu_read_efuse8(struct rtl8xxxu_priv *priv, u16 offset, u8 *data)
 {
