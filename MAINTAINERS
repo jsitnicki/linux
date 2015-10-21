@@ -8882,7 +8882,7 @@ M:	Jes Sorensen <Jes.Sorensen@redhat.com>
 L:	linux-wireless@vger.kernel.org
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/jes/linux.git rtl8723au-mac80211
 S:	Maintained
-F:	drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu*.[ch]
+F:	drivers/net/wireless/realtek/rtl8xxxu/
 
 S3 SAVAGE FRAMEBUFFER DRIVER
 M:	Antonino Daplas <adaplas@gmail.com>
