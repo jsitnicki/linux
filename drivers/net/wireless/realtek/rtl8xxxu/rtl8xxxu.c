@@ -2171,45 +2171,37 @@ static int rtl8723au_parse_efuse(struct rtl8xxxu_priv *priv)
 
 static int rtl8723bu_parse_efuse(struct rtl8xxxu_priv *priv)
 {
-	if (priv->efuse_wifi.efuse8723bu.rtl_id != cpu_to_le16(0x8129))
+	struct rtl8723bu_efuse *efuse = &priv->efuse_wifi.efuse8723bu;
+
+	if (efuse->rtl_id != cpu_to_le16(0x8129))
 		return -EINVAL;
 
-	ether_addr_copy(priv->mac_addr, priv->efuse_wifi.efuse8723bu.mac_addr);
+	ether_addr_copy(priv->mac_addr, efuse->mac_addr);
 
-	memcpy(priv->cck_tx_power_index_A,
-	       priv->efuse_wifi.efuse8723bu.cck_tx_power_index_A,
+	memcpy(priv->cck_tx_power_index_A, efuse->cck_tx_power_index_A,
 	       sizeof(priv->cck_tx_power_index_A));
-	memcpy(priv->cck_tx_power_index_B,
-	       priv->efuse_wifi.efuse8723bu.cck_tx_power_index_B,
+	memcpy(priv->cck_tx_power_index_B, efuse->cck_tx_power_index_B,
 	       sizeof(priv->cck_tx_power_index_B));
 
-	memcpy(priv->ht40_1s_tx_power_index_A,
-	       priv->efuse_wifi.efuse8723bu.ht40_1s_tx_power_index_A,
+	memcpy(priv->ht40_1s_tx_power_index_A, efuse->ht40_1s_tx_power_index_A,
 	       sizeof(priv->ht40_1s_tx_power_index_A));
-	memcpy(priv->ht40_1s_tx_power_index_B,
-	       priv->efuse_wifi.efuse8723bu.ht40_1s_tx_power_index_B,
+	memcpy(priv->ht40_1s_tx_power_index_B, efuse->ht40_1s_tx_power_index_B,
 	       sizeof(priv->ht40_1s_tx_power_index_B));
 
 #if 0
-	memcpy(priv->ht20_tx_power_index_diff,
-	       priv->efuse_wifi.efuse8723bu.ht20_tx_power_index_diff,
+	memcpy(priv->ht20_tx_power_index_diff, efuse->ht20_tx_power_index_diff,
 	       sizeof(priv->ht20_tx_power_index_diff));
-	memcpy(priv->ofdm_tx_power_index_diff,
-	       priv->efuse_wifi.efuse8723bu.ofdm_tx_power_index_diff,
+	memcpy(priv->ofdm_tx_power_index_diff, efuse->ofdm_tx_power_index_diff,
 	       sizeof(priv->ofdm_tx_power_index_diff));
 
-	memcpy(priv->ht40_max_power_offset,
-	       priv->efuse_wifi.efuse8723bu.ht40_max_power_offset,
+	memcpy(priv->ht40_max_power_offset, efuse->ht40_max_power_offset,
 	       sizeof(priv->ht40_max_power_offset));
-	memcpy(priv->ht20_max_power_offset,
-	       priv->efuse_wifi.efuse8723bu.ht20_max_power_offset,
+	memcpy(priv->ht20_max_power_offset, efuse->ht20_max_power_offset,
 	       sizeof(priv->ht20_max_power_offset));
 #endif
 
-	dev_info(&priv->udev->dev, "Vendor: %.7s\n",
-		 priv->efuse_wifi.efuse8723bu.vendor_name);
-	dev_info(&priv->udev->dev, "Product: %.41s\n",
-		 priv->efuse_wifi.efuse8723bu.device_name);
+	dev_info(&priv->udev->dev, "Vendor: %.7s\n", efuse->vendor_name);
+	dev_info(&priv->udev->dev, "Product: %.41s\n", efuse->device_name);
 
 	if (rtl8xxxu_debug & RTL8XXXU_DEBUG_EFUSE) {
 		int i;
