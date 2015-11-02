@@ -2300,7 +2300,7 @@ static int rtl8192eu_parse_efuse(struct rtl8xxxu_priv *priv)
 		return -EINVAL;
 
 	ether_addr_copy(priv->mac_addr, efuse->mac_addr);
-
+#if 0
 	memcpy(priv->cck_tx_power_index_A, efuse->cck_tx_power_index_A,
 	       sizeof(priv->cck_tx_power_index_A));
 	memcpy(priv->cck_tx_power_index_B, efuse->cck_tx_power_index_B,
@@ -2310,7 +2310,7 @@ static int rtl8192eu_parse_efuse(struct rtl8xxxu_priv *priv)
 	       sizeof(priv->ht40_1s_tx_power_index_A));
 	memcpy(priv->ht40_1s_tx_power_index_B, efuse->ht40_1s_tx_power_index_B,
 	       sizeof(priv->ht40_1s_tx_power_index_B));
-#if 0
+
 	memcpy(priv->ht40_2s_tx_power_index_diff,
 	       efuse->ht40_2s_tx_power_index_diff,
 	       sizeof(priv->ht40_2s_tx_power_index_diff));
