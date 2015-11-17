@@ -5386,6 +5386,74 @@ exit:
 	return ret;
 }
 
+static int rtl8188e_emu_to_active(struct rtl8xxxu_priv *priv)
+{
+	u8 val8;
+	u32 val32;
+	int count, ret = 0;
+
+	/* wait till 0x04[17] = 1 power ready */
+	for (count = RTL8XXXU_MAX_REG_POLL; count; count--) {
+		val32 = rtl8xxxu_read32(priv, REG_APS_FSMCO);
+		if (val32 & APS_FSMCO_SUSPEND_HOST)
+			break;
+
+		udelay(10);
+	}
+
+	if (!count) {
+		ret = -EBUSY;
+		goto exit;
+	}
+
+	/* 0x02[1:0] = 0 reset BB */
+	val8 = rtl8xxxu_read8(priv, REG_SYS_FUNC);
+	val8 &= ~(SYS_FUNC_BB_GLB_RSTN | SYS_FUNC_BBRSTB);
+	rtl8xxxu_write8(priv, REG_SYS_FUNC, val8);
+
+	/* 0x24[23] = 2b'01 Schmitt trigger */
+	val32 = rtl8xxxu_read32(priv, REG_AFE_XTAL_CTRL);
+	val32 |= AFE_XTAL_SCHMITT_TRIGGER;
+	rtl8xxxu_write32(priv, REG_AFE_XTAL_CTRL, val32);
+
+	/* 0x04[15] = 0	disable HWPDN (control by DRV) */
+	val32 = rtl8xxxu_read32(priv, REG_APS_FSMCO);
+	val32 &= ~APS_FSMCO_HW_POWERDOWN;
+	rtl8xxxu_write32(priv, REG_APS_FSMCO, val32);
+
+	/* 0x04[12:11] = 2b'00 disable WL suspend */
+	val32 = rtl8xxxu_read32(priv, REG_APS_FSMCO);
+	val32 &= ~(APS_FSMCO_PCIE | APS_FSMCO_HW_SUSPEND);
+	rtl8xxxu_write32(priv, REG_APS_FSMCO, val32);
+
+	/* 0x04[8] = 1 polling until return 0 */
+	val32 = rtl8xxxu_read32(priv, REG_APS_FSMCO);
+	val32 |= APS_FSMCO_MAC_ENABLE;
+	rtl8xxxu_write32(priv, REG_APS_FSMCO, val32);
+
+	/* wait till 0x04[8] = 0 */
+	for (count = RTL8XXXU_MAX_REG_POLL; count; count--) {
+		val32 = rtl8xxxu_read32(priv, REG_APS_FSMCO);
+		if (val32 & APS_FSMCO_MAC_ENABLE)
+			break;
+
+		udelay(10);
+	}
+
+	if (!count) {
+		ret = -EBUSY;
+		goto exit;
+	}
+
+	/* LDO normal mode */
+	val8 = rtl8xxxu_read8(priv, REG_LPLDO_CTRL);
+	val8 &= ~LPLDO_SLEEP_MODE;
+	rtl8xxxu_write8(priv, REG_LPLDO_CTRL, val8);
+
+exit:
+	return ret;
+}
+
 static int rtl8xxxu_emu_to_disabled(struct rtl8xxxu_priv *priv)
 {
 	u8 val8;
