@@ -5677,7 +5677,28 @@ exit:
 
 static int rtl8188eu_power_on(struct rtl8xxxu_priv *priv)
 {
-	return -EOPNOTSUPP; /* Not implemented */
+	u16 val16;
+	int ret;
+
+	ret = rtl8188e_emu_to_active(priv);
+	if (ret)
+		goto exit;
+
+	rtl8xxxu_write16(priv, REG_CR, 0x0000);
+
+	/*
+	 * Enable MAC DMA/WMAC/SCHEDULE/SEC block
+	 * Set CR bit10 to enable 32k calibration.
+	 */
+	val16 = rtl8xxxu_read16(priv, REG_CR);
+	val16 |= (CR_HCI_TXDMA_ENABLE | CR_HCI_RXDMA_ENABLE |
+		  CR_TXDMA_ENABLE | CR_RXDMA_ENABLE |
+		  CR_PROTOCOL_ENABLE | CR_SCHEDULE_ENABLE |
+		  CR_SECURITY_ENABLE | CR_CALTIMER_ENABLE);
+	rtl8xxxu_write16(priv, REG_CR, val16);
+
+exit:
+	return ret;
 }
 
 static void rtl8xxxu_power_off(struct rtl8xxxu_priv *priv)
