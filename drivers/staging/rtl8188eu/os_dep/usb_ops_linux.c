@@ -21,6 +21,7 @@
 #include <drv_types.h>
 #include <recv_osdep.h>
 #include <rtw_sreset.h>
+#include <trace.h>
 
 static void interrupt_handler_8188eu(struct adapter *adapt, u16 pkt_len, u8 *pbuf)
 {
@@ -331,7 +332,7 @@ u8 usb_read8(struct adapter *adapter, u32 addr)
 	len = 1;
 
 	usbctrl_vendorreq(adapter, request, wvalue, index, &data, len, requesttype);
-
+	trace_read8(addr, data);
 
 	return data;
 
@@ -352,6 +353,7 @@ u16 usb_read16(struct adapter *adapter, u32 addr)
 	wvalue = (u16)(addr&0x0000ffff);
 	len = 2;
 	usbctrl_vendorreq(adapter, request, wvalue, index, &data, len, requesttype);
+	trace_read16(addr, le16_to_cpu(data));
 
 	return le16_to_cpu(data);
 }
@@ -374,7 +376,7 @@ u32 usb_read32(struct adapter *adapter, u32 addr)
 	len = 4;
 
 	usbctrl_vendorreq(adapter, request, wvalue, index, &data, len, requesttype);
-
+	trace_read32(addr, le32_to_cpu(data));
 
 	return le32_to_cpu(data);
 }
