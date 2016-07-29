@@ -1580,11 +1580,10 @@ static bool fib_good_nh(const struct fib_nh *nh)
 	return !!(state & NUD_VALID);
 }
 
-void fib_select_multipath(struct fib_result *res, int hash)
+int fib_select_multipath(const struct fib_info *fi, int hash)
 {
-	struct fib_info *fi = res->fi;
-	struct net *net = fi->fib_net;
-	bool first = false;
+	const struct net *net = fi->fib_net;
+	int first_candidate = -1;
 
 	for_nexthops(fi) {
 		if (hash > atomic_read(&nh->nh_upper_bound))
@@ -1592,14 +1591,13 @@ void fib_select_multipath(struct fib_result *res, int hash)
 
 		if (!net->ipv4.sysctl_fib_multipath_use_neigh ||
 		    fib_good_nh(nh)) {
-			res->nh_sel = nhsel;
-			return;
+			return nhsel;
 		}
-		if (!first) {
-			res->nh_sel = nhsel;
-			first = true;
-		}
+		if (first_candidate < 0)
+			first_candidate = nhsel;
 	} endfor_nexthops(fi);
+
+	return first_candidate;
 }
 #endif
 
@@ -1611,7 +1609,7 @@ void fib_select_path(struct net *net, struct fib_result *res,
 		if (mp_hash < 0)
 			mp_hash = get_hash_from_flowi4(fl4) >> 1;
 
-		fib_select_multipath(res, mp_hash);
+		res->nh_sel = fib_select_multipath(res->fi, mp_hash);
 	}
 	else
 #endif
