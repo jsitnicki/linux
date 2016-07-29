@@ -330,7 +330,7 @@ static inline int fib_multipath_hash(__be32 saddr, __be32 daddr)
 			    fib_multipath_secret) >> 1;
 }
 
-void fib_select_multipath(struct fib_result *res, int hash);
+int fib_select_multipath(const struct fib_info *fi, int hash);
 void fib_select_path(struct net *net, struct fib_result *res,
 		     struct flowi4 *fl4, int mp_hash);
 

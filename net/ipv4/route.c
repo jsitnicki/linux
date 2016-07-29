@@ -1748,7 +1748,7 @@ static int ip_mkroute_input(struct sk_buff *skb,
 			h = ip_multipath_icmp_hash(skb);
 		else
 			h = fib_multipath_hash(saddr, daddr);
-		fib_select_multipath(res, h);
+		res->nh_sel = fib_select_multipath(res->fi, h);
 	}
 #endif
 
