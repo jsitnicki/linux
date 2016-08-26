@@ -425,14 +425,13 @@ static bool rt6_check_expired(const struct rt6_info *rt)
 	return false;
 }
 
-static struct rt6_info *rt6_multipath_select(struct rt6_info *match,
-					     struct flowi6 *fl6, int oif,
-					     int strict)
+static struct rt6_info *rt6_multipath_select(struct rt6_info *match, u32 hash,
+					     int oif, int strict)
 {
 	struct rt6_info *sibling, *next_sibling;
 	int route_choosen;
 
-	route_choosen = get_hash_from_flowi6(fl6) % (match->rt6i_nsiblings + 1);
+	route_choosen = hash % (match->rt6i_nsiblings + 1);
 	/* Don't change the route, if route_choosen == 0
 	 * (siblings does not include ourself)
 	 */
@@ -848,8 +847,10 @@ static struct rt6_info *ip6_pol_route_lookup(struct net *net,
 restart:
 	rt = fn->leaf;
 	rt = rt6_device_match(net, rt, &fl6->saddr, fl6->flowi6_oif, flags);
-	if (rt->rt6i_nsiblings && fl6->flowi6_oif == 0)
-		rt = rt6_multipath_select(rt, fl6, fl6->flowi6_oif, flags);
+	if (rt->rt6i_nsiblings && fl6->flowi6_oif == 0) {
+		rt = rt6_multipath_select(rt, get_hash_from_flowi6(fl6),
+					  fl6->flowi6_oif, flags);
+	}
 	if (rt == net->ipv6.ip6_null_entry) {
 		fn = fib6_backtrack(fn, &fl6->saddr);
 		if (fn)
@@ -1053,8 +1054,10 @@ struct rt6_info *ip6_pol_route(struct net *net, struct fib6_table *table,
 
 redo_rt6_select:
 	rt = rt6_select(fn, oif, strict);
-	if (rt->rt6i_nsiblings)
-		rt = rt6_multipath_select(rt, fl6, oif, strict);
+	if (rt->rt6i_nsiblings) {
+		rt = rt6_multipath_select(rt, get_hash_from_flowi6(fl6),
+					  oif, strict);
+	}
 	if (rt == net->ipv6.ip6_null_entry) {
 		fn = fib6_backtrack(fn, &fl6->saddr);
 		if (fn)
