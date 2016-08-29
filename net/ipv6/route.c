@@ -1168,6 +1168,18 @@ void ip6_route_input(struct sk_buff *skb)
 	tun_info = skb_tunnel_info(skb);
 	if (tun_info && !(tun_info->mode & IP_TUNNEL_INFO_TX))
 		fl6.flowi6_tun_key.tun_id = tun_info->key.tun_id;
+
+	if (unlikely(fl6.flowi6_proto) == IPPROTO_ICMPV6) {
+		const struct icmp6hdr *icmph = icmp6_hdr(skb);
+
+		/* XXX: Do we need to check for fragmented ICMP? */
+
+		fl6.fl6_icmp_type = icmph->icmp_type;
+		fl6.fl6_icmp_code = icmph->icmp_code;
+
+		/* ... */
+	}
+
 	skb_dst_drop(skb);
 	skb_dst_set(skb, ip6_route_input_lookup(net, skb->dev, &fl6, flags));
 }
