@@ -49,6 +49,16 @@ union flowi_uli {
 	struct {
 		__u8	type;
 		__u8	code;
+		union {
+			struct {
+				__be32 saddr;
+				__be32 daddr;
+			} v4;
+			struct {
+				struct in6_addr saddr;
+				struct in6_addr daddr;
+			} v6;
+		} iph;
 	} icmpt;
 
 	struct {
@@ -85,6 +95,8 @@ struct flowi4 {
 #define fl4_dport		uli.ports.dport
 #define fl4_icmp_type		uli.icmpt.type
 #define fl4_icmp_code		uli.icmpt.code
+#define fl4_icmp_saddr		uli.icmpt.saddr
+#define fl4_icmp_daddr		uli.icmpt.daddr
 #define fl4_ipsec_spi		uli.spi
 #define fl4_mh_type		uli.mht.type
 #define fl4_gre_key		uli.gre_key
@@ -141,6 +153,8 @@ struct flowi6 {
 #define fl6_dport		uli.ports.dport
 #define fl6_icmp_type		uli.icmpt.type
 #define fl6_icmp_code		uli.icmpt.code
+#define fl6_icmp_saddr		uli.icmpt.iph.v6.saddr
+#define fl6_icmp_daddr		uli.icmpt.iph.v6.daddr
 #define fl6_ipsec_spi		uli.spi
 #define fl6_mh_type		uli.mht.type
 #define fl6_gre_key		uli.gre_key
