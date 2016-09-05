@@ -38,6 +38,7 @@ struct flowi_common {
 #define FLOWI_FLAG_SKIP_NH_OIF		0x08
 	__u32	flowic_secid;
 	struct flowi_tunnel flowic_tun_key;
+	__u32	flowic_mp_hash;
 };
 
 union flowi_uli {
@@ -75,6 +76,7 @@ struct flowi4 {
 #define flowi4_flags		__fl_common.flowic_flags
 #define flowi4_secid		__fl_common.flowic_secid
 #define flowi4_tun_key		__fl_common.flowic_tun_key
+#define flowi4_mp_hash		__fl_common.flowic_mp_hash
 
 	/* (saddr,daddr) must be grouped, same order as in IP header */
 	__be32			saddr;
@@ -132,6 +134,7 @@ struct flowi6 {
 #define flowi6_flags		__fl_common.flowic_flags
 #define flowi6_secid		__fl_common.flowic_secid
 #define flowi6_tun_key		__fl_common.flowic_tun_key
+#define flowi6_mp_hash		__fl_common.flowic_mp_hash
 	struct in6_addr		daddr;
 	struct in6_addr		saddr;
 	/* Note: flowi6_tos is encoded in flowlabel, too. */
