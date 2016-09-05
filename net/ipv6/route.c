@@ -1169,15 +1169,30 @@ void ip6_route_input(struct sk_buff *skb)
 	if (tun_info && !(tun_info->mode & IP_TUNNEL_INFO_TX))
 		fl6.flowi6_tun_key.tun_id = tun_info->key.tun_id;
 
+	/* TODO: Extract into a helper */
 	if (unlikely(fl6.flowi6_proto) == IPPROTO_ICMPV6) {
 		const struct icmp6hdr *icmph = icmp6_hdr(skb);
 
 		/* XXX: Do we need to check for fragmented ICMP? */
 
-		fl6.fl6_icmp_type = icmph->icmp_type;
-		fl6.fl6_icmp_code = icmph->icmp_code;
+		fl6.fl6_icmp_type = icmph->icmp6_type;
+		fl6.fl6_icmp_code = icmph->icmp6_code;
 
-		/* ... */
+		if (fl6.fl6_icmp_type == ICMPV6_DEST_UNREACH ||
+		    fl6.fl6_icmp_type == ICMPV6_PKT_TOOBIG ||
+		    fl6.fl6_icmp_type == ICMPV6_TIME_EXCEED ||
+		    fl6.fl6_icmp_type == ICMPV6_PARAMPROB) {
+			const struct ipv6hdr *inner_iph;
+			struct ipv6hdr _inner_iph;
+
+			inner_iph = skb_header_pointer(
+				skb, skb_transport_offset(skb) + sizeof(struct icmp6hdr),
+				sizeof(_inner_iph), &_inner_iph);
+			if (inner_iph) {
+				fl6.fl6_icmp_saddr = inner_iph->saddr;
+				fl6.fl6_icmp_daddr = inner_iph->daddr;
+			}
+		}
 	}
 
 	skb_dst_drop(skb);
