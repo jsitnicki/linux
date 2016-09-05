@@ -57,6 +57,8 @@ union flowi_uli {
 			struct {
 				struct in6_addr saddr;
 				struct in6_addr daddr;
+				__be32 flowlabel;
+				__u8 proto;
 			} v6;
 		} iph;
 	} icmpt;
@@ -155,6 +157,8 @@ struct flowi6 {
 #define fl6_icmp_code		uli.icmpt.code
 #define fl6_icmp_saddr		uli.icmpt.iph.v6.saddr
 #define fl6_icmp_daddr		uli.icmpt.iph.v6.daddr
+#define fl6_icmp_flowlabel	uli.icmpt.iph.v6.flowlabel
+#define fl6_icmp_proto		uli.icmpt.iph.v6.proto
 #define fl6_ipsec_spi		uli.spi
 #define fl6_mh_type		uli.mht.type
 #define fl6_gre_key		uli.gre_key

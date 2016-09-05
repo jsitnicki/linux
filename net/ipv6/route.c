@@ -835,6 +835,35 @@ static struct fib6_node* fib6_backtrack(struct fib6_node *fn,
 	}
 }
 
+static u32 ip6_multipath_icmp_hash(const struct flowi6 *fl6)
+{
+	struct flowi6 inner_fl6;
+
+	if (fl6->flowi6_proto != IPPROTO_ICMPV6)
+		goto standard_hash;
+
+	if (fl6->fl6_icmp_type != ICMPV6_DEST_UNREACH &&
+	    fl6->fl6_icmp_type != ICMPV6_PKT_TOOBIG &&
+	    fl6->fl6_icmp_type != ICMPV6_TIME_EXCEED &&
+	    fl6->fl6_icmp_type != ICMPV6_PARAMPROB)
+		goto standard_hash;
+
+	/* Calculate the multipath hash from the inner IP fields, with source
+	 * and destination swapped, to make ICMP packets follow the flow they
+	 * belong to.
+	 */
+	memset(&inner_fl6, 0, sizeof(inner_fl6));
+	inner_fl6.daddr = fl6->fl6_icmp_saddr;
+	inner_fl6.saddr = fl6->fl6_icmp_daddr;
+	inner_fl6.flowlabel = fl6->fl6_icmp_flowlabel;
+	inner_fl6.flowi6_proto = fl6->fl6_icmp_proto;
+
+	return get_hash_from_flowi6(&inner_fl6);
+
+standard_hash:
+	return get_hash_from_flowi6(fl6);
+}
+
 static struct rt6_info *ip6_pol_route_lookup(struct net *net,
 					     struct fib6_table *table,
 					     struct flowi6 *fl6, int flags)
@@ -848,7 +877,7 @@ restart:
 	rt = fn->leaf;
 	rt = rt6_device_match(net, rt, &fl6->saddr, fl6->flowi6_oif, flags);
 	if (rt->rt6i_nsiblings && fl6->flowi6_oif == 0) {
-		rt = rt6_multipath_select(rt, get_hash_from_flowi6(fl6),
+		rt = rt6_multipath_select(rt, ip6_multipath_icmp_hash(fl6),
 					  fl6->flowi6_oif, flags);
 	}
 	if (rt == net->ipv6.ip6_null_entry) {
@@ -1055,7 +1084,7 @@ struct rt6_info *ip6_pol_route(struct net *net, struct fib6_table *table,
 redo_rt6_select:
 	rt = rt6_select(fn, oif, strict);
 	if (rt->rt6i_nsiblings) {
-		rt = rt6_multipath_select(rt, get_hash_from_flowi6(fl6),
+		rt = rt6_multipath_select(rt, ip6_multipath_icmp_hash(fl6),
 					  oif, strict);
 	}
 	if (rt == net->ipv6.ip6_null_entry) {
@@ -1191,6 +1220,8 @@ void ip6_route_input(struct sk_buff *skb)
 			if (inner_iph) {
 				fl6.fl6_icmp_saddr = inner_iph->saddr;
 				fl6.fl6_icmp_daddr = inner_iph->daddr;
+				fl6.fl6_icmp_flowlabel = ip6_flowinfo(inner_iph);
+				fl6.fl6_icmp_proto = inner_iph->nexthdr;
 			}
 		}
 	}
