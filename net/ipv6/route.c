@@ -1147,6 +1147,46 @@ static struct dst_entry *ip6_route_input_lookup(struct net *net,
 	return fib6_rule_lookup(net, fl6, flags, ip6_pol_route_input);
 }
 
+static u32 ip6_multipath_icmp_hash(const struct sk_buff *skb)
+{
+	const struct icmp6hdr *icmph = icmp6_hdr(skb);
+	const struct ipv6hdr *inner_iph;
+	struct ipv6hdr _inner_iph;
+	struct flowi6 inner_fl6;
+
+	/* XXX: Do we need to worry about fragmented ICMP? */
+
+	if (!icmph)
+		goto standard_hash;
+
+	if (icmph->icmp6_type != ICMPV6_DEST_UNREACH &&
+	    icmph->icmp6_type != ICMPV6_PKT_TOOBIG &&
+	    icmph->icmp6_type != ICMPV6_TIME_EXCEED &&
+	    icmph->icmp6_type != ICMPV6_PARAMPROB)
+		goto standard_hash;
+
+	inner_iph = skb_header_pointer(skb,
+				       skb_transport_offset(skb) + sizeof(*icmph),
+				       sizeof(_inner_iph), &_inner_iph);
+	if (!inner_iph)
+		goto standard_hash;
+
+	/* Calculate the multipath hash from the inner IP fields, with source
+	 * and destination swapped, to make ICMP packets follow the flow they
+	 * belong to.
+	 */
+	memset(&inner_fl6, 0, sizeof(inner_fl6));
+	inner_fl6.daddr = inner_iph->saddr;
+	inner_fl6.saddr = inner_iph->daddr;
+	inner_fl6.flowlabel = ip6_flowinfo(inner_iph);
+	inner_fl6.flowi6_proto = inner_iph->nexthdr;
+
+	return get_hash_from_flowi6(&inner_fl6);
+
+standard_hash:
+	return 0; /* compute it later, if needed */
+}
+
 void ip6_route_input(struct sk_buff *skb)
 {
 	const struct ipv6hdr *iph = ipv6_hdr(skb);
@@ -1165,6 +1205,8 @@ void ip6_route_input(struct sk_buff *skb)
 	tun_info = skb_tunnel_info(skb);
 	if (tun_info && !(tun_info->mode & IP_TUNNEL_INFO_TX))
 		fl6.flowi6_tun_key.tun_id = tun_info->key.tun_id;
+	if (unlikely(fl6.flowi6_proto == IPPROTO_ICMPV6))
+		fl6.flowi6_mp_hash = ip6_multipath_icmp_hash(skb);
 	skb_dst_drop(skb);
 	skb_dst_set(skb, ip6_route_input_lookup(net, skb->dev, &fl6, flags));
 }
