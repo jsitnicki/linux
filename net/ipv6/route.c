@@ -430,9 +430,11 @@ static struct rt6_info *rt6_multipath_select(struct rt6_info *match,
 					     int strict)
 {
 	struct rt6_info *sibling, *next_sibling;
+	unsigned int hash;
 	int route_choosen;
 
-	route_choosen = get_hash_from_flowi6(fl6) % (match->rt6i_nsiblings + 1);
+	hash = fl6->flowi6_mp_hash ? : get_hash_from_flowi6(fl6);
+	route_choosen = hash % (match->rt6i_nsiblings + 1);
 	/* Don't change the route, if route_choosen == 0
 	 * (siblings does not include ourself)
 	 */
