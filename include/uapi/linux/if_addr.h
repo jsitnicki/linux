@@ -53,6 +53,7 @@ enum {
 #define IFA_F_NOPREFIXROUTE	0x200
 #define IFA_F_MCAUTOJOIN	0x400
 #define IFA_F_STABLE_PRIVACY	0x800
+#define IFA_F_FLUSH		0x1000
 
 struct ifa_cacheinfo {
 	__u32	ifa_prefered;
