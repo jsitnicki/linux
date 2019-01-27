@@ -493,8 +493,13 @@ struct sk_psock *sk_psock_init(struct sock *sk, int node)
 	sk_psock_set_state(psock, SK_PSOCK_TX_ENABLED);
 	refcount_set(&psock->refcnt, 1);
 
-	rcu_assign_sk_user_data(sk, psock);
+	/* Hold on to socket wait queue. Backlog work waits on it for
+	 * memory when sending. We must cancel work before socket wait
+	 * queue can go away.
+	 */
+	get_file(sk->sk_socket->file);
 	sock_hold(sk);
+	rcu_assign_sk_user_data(sk, psock);
 
 	return psock;
 }
@@ -558,6 +563,7 @@ static void sk_psock_destroy_deferred(struct work_struct *gc)
 	if (psock->sk_redir)
 		sock_put(psock->sk_redir);
 	sock_put(psock->sk);
+	fput(psock->sk->sk_socket->file);
 	kfree(psock);
 }
 
