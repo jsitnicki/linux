@@ -253,6 +253,8 @@ LIBBPF_0.0.8 {
 		bpf_program__set_attach_target;
 		bpf_program__set_lsm;
 		bpf_set_link_xdp_fd_opts;
+		bpf_program__is_sk_lookup;
+		bpf_program__set_sk_lookup;
 } LIBBPF_0.0.7;
 
 LIBBPF_0.0.9 {
