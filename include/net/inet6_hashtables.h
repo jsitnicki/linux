@@ -104,6 +104,44 @@ struct sock *inet6_lookup(struct net *net, struct inet_hashinfo *hashinfo,
 			  const int dif);
 
 int inet6_hash(struct sock *sk);
+
+#ifdef CONFIG_BPF_SYSCALL
+static inline struct sock *inet6_lookup_run_bpf(struct net *net, u8 proto,
+						const struct in6_addr *saddr,
+						__be16 sport,
+						const struct in6_addr *daddr,
+						unsigned short hnum)
+{
+	struct bpf_inet_lookup_kern ctx = {
+		.family		= AF_INET6,
+		.protocol	= proto,
+		.saddr6		= *saddr,
+		.sport		= sport,
+		.daddr6		= *daddr,
+		.hnum		= hnum,
+	};
+	struct bpf_prog *prog;
+	int ret = BPF_OK;
+
+	rcu_read_lock();
+	prog = rcu_dereference(net->inet_lookup_prog);
+	if (prog)
+		ret = BPF_PROG_RUN(prog, &ctx);
+	rcu_read_unlock();
+
+	return ret == BPF_REDIRECT ? ctx.redir_sk : NULL;
+}
+#else
+static inline struct sock *inet6_lookup_run_bpf(struct net *net, u8 proto,
+						const struct in6_addr *saddr,
+						__be16 sport,
+						const struct in6_addr *daddr,
+						unsigned short hnum)
+{
+	return NULL;
+}
+#endif /* CONFIG_BPF_SYSCALL */
+
 #endif /* IS_ENABLED(CONFIG_IPV6) */
 
 #define INET6_MATCH(__sk, __net, __saddr, __daddr, __ports, __dif, __sdif) \
