@@ -158,24 +158,27 @@ struct sock *inet6_lookup_listener(struct net *net,
 		const unsigned short hnum, const int dif, const int sdif)
 {
 	struct inet_listen_hashbucket *ilb2;
+	struct in6_addr daddr2 = *daddr;
+	unsigned short hnum2 = hnum;
 	struct sock *result = NULL;
 	unsigned int hash2;
 
-	hash2 = ipv6_portaddr_hash(net, daddr, hnum);
+	inet6_lookup_run_bpf(net, saddr, sport, &daddr2, &hnum2);
+	hash2 = ipv6_portaddr_hash(net, &daddr2, hnum2);
 	ilb2 = inet_lhash2_bucket(hashinfo, hash2);
 
 	result = inet6_lhash2_lookup(net, ilb2, skb, doff,
-				     saddr, sport, daddr, hnum,
+				     saddr, sport, &daddr2, hnum2,
 				     dif, sdif);
 	if (result)
 		goto done;
 
 	/* Lookup lhash2 with in6addr_any */
-	hash2 = ipv6_portaddr_hash(net, &in6addr_any, hnum);
+	hash2 = ipv6_portaddr_hash(net, &in6addr_any, hnum2);
 	ilb2 = inet_lhash2_bucket(hashinfo, hash2);
 
 	result = inet6_lhash2_lookup(net, ilb2, skb, doff,
-				     saddr, sport, &in6addr_any, hnum,
+				     saddr, sport, &in6addr_any, hnum2,
 				     dif, sdif);
 done:
 	if (unlikely(IS_ERR(result)))

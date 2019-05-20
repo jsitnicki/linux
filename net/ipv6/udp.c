@@ -196,17 +196,19 @@ struct sock *__udp6_lib_lookup(struct net *net,
 			       struct sk_buff *skb)
 {
 	unsigned short hnum = ntohs(dport);
+	struct in6_addr daddr2 = *daddr;
 	unsigned int hash2, slot2;
 	struct udp_hslot *hslot2;
 	struct sock *result;
 	bool exact_dif = udp6_lib_exact_dif_match(net, skb);
 
-	hash2 = ipv6_portaddr_hash(net, daddr, hnum);
+	inet6_lookup_run_bpf(net, saddr, sport, &daddr2, &hnum);
+	hash2 = ipv6_portaddr_hash(net, &daddr2, hnum);
 	slot2 = hash2 & udptable->mask;
 	hslot2 = &udptable->hash2[slot2];
 
 	result = udp6_lib_lookup2(net, saddr, sport,
-				  daddr, hnum, dif, sdif, exact_dif,
+				  &daddr2, hnum, dif, sdif, exact_dif,
 				  hslot2, skb);
 	if (!result) {
 		hash2 = ipv6_portaddr_hash(net, &in6addr_any, hnum);
