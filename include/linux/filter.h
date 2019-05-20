@@ -1336,4 +1336,45 @@ static inline bool bpf_sk_lookup_run_v4(struct net *net, int protocol,
 	return do_reuseport;
 }
 
+#if IS_ENABLED(CONFIG_IPV6)
+static inline bool bpf_sk_lookup_run_v6(struct net *net, int protocol,
+					const struct in6_addr *saddr,
+					const __be16 sport,
+					const struct in6_addr *daddr,
+					const u16 dport,
+					struct sock **psk)
+{
+	struct bpf_prog_array *run_array;
+	bool do_reuseport = false;
+	struct sock *sk = NULL;
+
+	rcu_read_lock();
+	run_array = rcu_dereference(net->bpf.run_array[NETNS_BPF_SK_LOOKUP]);
+	if (run_array) {
+		const struct bpf_sk_lookup_kern ctx = {
+			.family		= AF_INET6,
+			.protocol	= protocol,
+			.v6.saddr	= saddr,
+			.v6.daddr	= daddr,
+			.sport		= sport,
+			.dport		= dport,
+		};
+		u32 ret;
+
+		ret = BPF_PROG_SK_LOOKUP_RUN_ARRAY(run_array, &ctx,
+						   BPF_PROG_RUN);
+		if (ret & (1U << BPF_REDIRECT)) {
+			sk = ctx.selected_sk;
+			do_reuseport = sk && !ctx.no_reuseport;
+		} else if (ret & (1U << BPF_DROP)) {
+			sk = ERR_PTR(-ECONNREFUSED);
+		}
+	}
+	rcu_read_unlock();
+
+	*psk = sk;
+	return do_reuseport;
+}
+#endif /* IS_ENABLED(CONFIG_IPV6) */
+
 #endif /* __LINUX_FILTER_H__ */
