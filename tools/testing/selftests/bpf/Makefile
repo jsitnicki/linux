@@ -31,7 +31,9 @@ TEST_GEN_PROGS = test_verifier test_tag test_maps test_lru_map test_lpm_map test
 	test_btf_dump test_cgroup_attach xdping test_sockopt test_sockopt_sk \
 	test_sockopt_multi test_sockopt_inherit test_tcp_rtt
 
-BPF_OBJ_FILES = $(patsubst %.c,%.o, $(notdir $(wildcard progs/*.c)))
+BPF_OBJ_FILES := $(patsubst %.c,%.o, $(notdir $(wildcard progs/*.c)))
+# Workaround for unidentified LLVM bug
+BPF_OBJ_FILES := $(filter-out test_core_reloc_arrays.o,$(BPF_OBJ_FILES))
 TEST_GEN_FILES = $(BPF_OBJ_FILES)
 
 # Also test sub-register code-gen if LLVM has eBPF v3 processor support which
