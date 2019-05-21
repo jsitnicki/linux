@@ -28,7 +28,10 @@ TEST_GEN_PROGS = test_verifier test_tag test_maps test_lru_map test_lpm_map test
 	test_netcnt test_tcpnotify_user test_sock_fields test_sysctl test_hashmap \
 	test_btf_dump test_cgroup_attach xdping
 
-BPF_OBJ_FILES = $(patsubst %.c,%.o, $(notdir $(wildcard progs/*.c)))
+# Workaround for missing LLVM fix
+# commit c0db6b6bd444 ("[BPF] Don't fail for static variables")
+BPF_OBJ_FILES := $(patsubst %.c,%.o, $(notdir $(wildcard progs/*.c)))
+BPF_OBJ_FILES := $(filter-out test_global_data.o,$(BPF_OBJ_FILES))
 TEST_GEN_FILES = $(BPF_OBJ_FILES)
 
 # Also test sub-register code-gen if LLVM has eBPF v3 processor support which
