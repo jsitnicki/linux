@@ -1935,6 +1935,9 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 	case BPF_CGROUP_SETSOCKOPT:
 		ptype = BPF_PROG_TYPE_CGROUP_SOCKOPT;
 		break;
+	case BPF_INET_LOOKUP:
+		ptype = BPF_PROG_TYPE_INET_LOOKUP;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -1958,6 +1961,9 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 		break;
 	case BPF_PROG_TYPE_FLOW_DISSECTOR:
 		ret = skb_flow_dissector_bpf_prog_attach(attr, prog);
+		break;
+	case BPF_PROG_TYPE_INET_LOOKUP:
+		ret = inet_lookup_bpf_prog_attach(attr, prog);
 		break;
 	default:
 		ret = cgroup_bpf_prog_attach(attr, ptype, prog);
@@ -2022,6 +2028,8 @@ static int bpf_prog_detach(const union bpf_attr *attr)
 	case BPF_CGROUP_SETSOCKOPT:
 		ptype = BPF_PROG_TYPE_CGROUP_SOCKOPT;
 		break;
+	case BPF_INET_LOOKUP:
+		return inet_lookup_bpf_prog_detach(attr);
 	default:
 		return -EINVAL;
 	}
@@ -2065,6 +2073,8 @@ static int bpf_prog_query(const union bpf_attr *attr,
 		return lirc_prog_query(attr, uattr);
 	case BPF_FLOW_DISSECTOR:
 		return skb_flow_dissector_prog_query(attr, uattr);
+	case BPF_INET_LOOKUP:
+		return inet_lookup_bpf_prog_query(attr, uattr);
 	default:
 		return -EINVAL;
 	}
