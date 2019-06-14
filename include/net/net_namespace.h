@@ -163,6 +163,7 @@ struct net {
 	struct net_generic __rcu	*gen;
 
 	struct bpf_prog __rcu	*flow_dissector_prog;
+	struct bpf_prog __rcu	*sk_lookup_prog;
 
 	/* Note : following structs are cache line aligned */
 #ifdef CONFIG_XFRM

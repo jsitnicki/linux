@@ -1280,4 +1280,27 @@ struct bpf_sockopt_kern {
 	s32		retval;
 };
 
+struct bpf_sk_lookup_kern {
+	unsigned short	family;
+	u16		protocol;
+	union {
+		struct {
+			__be32 saddr;
+			__be32 daddr;
+		} v4;
+		struct {
+			struct in6_addr saddr;
+			struct in6_addr daddr;
+		} v6;
+	};
+	__be16		sport;
+	u16		dport;
+	struct sock	*selected_sk;
+};
+
+int sk_lookup_prog_attach(const union bpf_attr *attr, struct bpf_prog *prog);
+int sk_lookup_prog_detach(const union bpf_attr *attr);
+int sk_lookup_prog_query(const union bpf_attr *attr,
+			 union bpf_attr __user *uattr);
+
 #endif /* __LINUX_FILTER_H__ */
