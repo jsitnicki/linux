@@ -9007,4 +9007,235 @@ const struct bpf_verifier_ops sk_reuseport_verifier_ops = {
 
 const struct bpf_prog_ops sk_reuseport_prog_ops = {
 };
+
 #endif /* CONFIG_INET */
+
+static DEFINE_MUTEX(inet_lookup_prog_mutex);
+
+BPF_CALL_4(redirect_lookup, struct bpf_inet_lookup_kern *, ctx,
+	   struct bpf_map *, map, void *, key, u64, flags)
+{
+	struct sock_reuseport *reuse;
+	struct sock *redir_sk;
+
+	if (unlikely(flags))
+		return -EINVAL;
+
+	/* Lookup socket in the map */
+	redir_sk = map->ops->map_lookup_elem(map, key);
+	if (!redir_sk)
+		return -ENOENT;
+
+	/* Check if socket got unhashed from sockets table, e.g. by
+	 * close(), after the above map_lookup_elem(). Treat it as
+	 * removed from the map.
+	 */
+	reuse = rcu_dereference(redir_sk->sk_reuseport_cb);
+	if (!reuse)
+		return -ENOENT;
+
+	/* Check protocol & family are a match */
+	if (ctx->protocol != redir_sk->sk_protocol)
+		return -EPROTOTYPE;
+	if (ctx->family != redir_sk->sk_family &&
+	    (redir_sk->sk_family == AF_INET || ipv6_only_sock(redir_sk)))
+		return -EAFNOSUPPORT;
+
+	/* Store socket in context */
+	ctx->redir_sk = redir_sk;
+
+	/* Signal redirect action */
+	return BPF_REDIRECT;
+}
+
+static const struct bpf_func_proto bpf_redirect_lookup_proto = {
+	.func		= redirect_lookup,
+	.gpl_only	= false,
+	.ret_type	= RET_INTEGER,
+	.arg1_type	= ARG_PTR_TO_CTX,
+	.arg2_type	= ARG_CONST_MAP_PTR,
+	.arg3_type	= ARG_PTR_TO_MAP_KEY,
+	.arg4_type	= ARG_ANYTHING,
+};
+
+static const struct bpf_func_proto *
+inet_lookup_func_proto(enum bpf_func_id func_id,
+		       const struct bpf_prog *prog)
+{
+	switch (func_id) {
+	case BPF_FUNC_redirect_lookup:
+		return &bpf_redirect_lookup_proto;
+	default:
+		return bpf_base_func_proto(func_id);
+	}
+}
+
+int inet_lookup_bpf_prog_attach(const union bpf_attr *attr,
+				struct bpf_prog *prog)
+{
+	struct net *net = current->nsproxy->net_ns;
+
+	return bpf_prog_attach_one(&net->inet_lookup_prog,
+				   &inet_lookup_prog_mutex, prog,
+				   attr->attach_flags);
+}
+
+int inet_lookup_bpf_prog_detach(const union bpf_attr *attr)
+{
+	struct net *net = current->nsproxy->net_ns;
+
+	return bpf_prog_detach_one(&net->inet_lookup_prog,
+				   &inet_lookup_prog_mutex);
+}
+
+int inet_lookup_bpf_prog_query(const union bpf_attr *attr,
+			       union bpf_attr __user *uattr)
+{
+	struct net *net;
+	int ret;
+
+	net = get_net_ns_by_fd(attr->query.target_fd);
+	if (IS_ERR(net))
+		return PTR_ERR(net);
+
+	ret = bpf_prog_query_one(&net->inet_lookup_prog, attr, uattr);
+
+	put_net(net);
+	return ret;
+}
+
+static bool inet_lookup_is_valid_access(int off, int size,
+					enum bpf_access_type type,
+					const struct bpf_prog *prog,
+					struct bpf_insn_access_aux *info)
+{
+	const int size_default = sizeof(__u32);
+
+	if (off < 0 || off >= sizeof(struct bpf_inet_lookup))
+		return false;
+	if (off % size != 0)
+		return false;
+	if (type != BPF_READ)
+		return false;
+
+	switch (off) {
+	case bpf_ctx_range(struct bpf_inet_lookup, remote_ip4):
+	case bpf_ctx_range(struct bpf_inet_lookup, local_ip4):
+	case bpf_ctx_range_till(struct bpf_inet_lookup,
+				remote_ip6[0], remote_ip6[3]):
+	case bpf_ctx_range_till(struct bpf_inet_lookup,
+				local_ip6[0], local_ip6[3]):
+		if (!bpf_ctx_narrow_access_ok(off, size, size_default))
+			return false;
+		bpf_ctx_record_field_size(info, size_default);
+		break;
+
+	case bpf_ctx_range(struct bpf_inet_lookup, family):
+	case bpf_ctx_range(struct bpf_inet_lookup, protocol):
+	case bpf_ctx_range(struct bpf_inet_lookup, remote_port):
+	case bpf_ctx_range(struct bpf_inet_lookup, local_port):
+		if (size != size_default)
+			return false;
+		break;
+
+	default:
+		return false;
+	}
+
+	return true;
+}
+
+#define LOAD_FIELD_SIZE_OFF(TYPE, FIELD, SIZE, OFF) ({			\
+	*insn++ = BPF_LDX_MEM(SIZE, si->dst_reg, si->src_reg,		\
+			      bpf_target_off(TYPE, FIELD,		\
+					     FIELD_SIZEOF(TYPE, FIELD),	\
+					     target_size) + (OFF));	\
+})
+
+#define LOAD_FIELD_SIZE(TYPE, FIELD, SIZE) \
+	LOAD_FIELD_SIZE_OFF(TYPE, FIELD, SIZE, 0)
+
+#define LOAD_FIELD(TYPE, FIELD) \
+	LOAD_FIELD_SIZE(TYPE, FIELD, BPF_FIELD_SIZEOF(TYPE, FIELD))
+
+static u32 inet_lookup_convert_ctx_access(enum bpf_access_type type,
+					  const struct bpf_insn *si,
+					  struct bpf_insn *insn_buf,
+					  struct bpf_prog *prog,
+					  u32 *target_size)
+{
+	struct bpf_insn *insn = insn_buf;
+	int off;
+
+	switch (si->off) {
+	case offsetof(struct bpf_inet_lookup, family):
+		LOAD_FIELD(struct bpf_inet_lookup_kern, family);
+		break;
+
+	case offsetof(struct bpf_inet_lookup, protocol):
+		LOAD_FIELD(struct bpf_inet_lookup_kern, protocol);
+		break;
+
+	case offsetof(struct bpf_inet_lookup, remote_ip4):
+		LOAD_FIELD_SIZE(struct bpf_inet_lookup_kern, saddr,
+				BPF_SIZE(si->code));
+		break;
+
+	case offsetof(struct bpf_inet_lookup, local_ip4):
+		LOAD_FIELD_SIZE(struct bpf_inet_lookup_kern, daddr,
+				BPF_SIZE(si->code));
+
+		break;
+
+	case bpf_ctx_range_till(struct bpf_inet_lookup,
+				remote_ip6[0], remote_ip6[3]):
+#if IS_ENABLED(CONFIG_IPV6)
+		off = si->off;
+		off -= offsetof(struct bpf_inet_lookup, remote_ip6[0]);
+
+		LOAD_FIELD_SIZE_OFF(struct bpf_inet_lookup_kern,
+				    saddr6.s6_addr32[0],
+				    BPF_SIZE(si->code), off);
+#else
+		(void)off;
+
+		*insn++ = BPF_MOV32_IMM(si->dst_reg, 0);
+#endif
+		break;
+
+	case bpf_ctx_range_till(struct bpf_inet_lookup,
+				local_ip6[0], local_ip6[3]):
+#if IS_ENABLED(CONFIG_IPV6)
+		off = si->off;
+		off -= offsetof(struct bpf_inet_lookup, local_ip6[0]);
+
+		LOAD_FIELD_SIZE_OFF(struct bpf_inet_lookup_kern,
+				    daddr6.s6_addr32[0],
+				    BPF_SIZE(si->code), off);
+#else
+		(void)off;
+
+		*insn++ = BPF_MOV32_IMM(si->dst_reg, 0);
+#endif
+		break;
+
+	case offsetof(struct bpf_inet_lookup, remote_port):
+		LOAD_FIELD(struct bpf_inet_lookup_kern, sport);
+		break;
+
+	case offsetof(struct bpf_inet_lookup, local_port):
+		LOAD_FIELD(struct bpf_inet_lookup_kern, hnum);
+		break;
+	}
+
+	return insn - insn_buf;
+}
+
+const struct bpf_prog_ops inet_lookup_prog_ops = {
+};
+
+const struct bpf_verifier_ops inet_lookup_verifier_ops = {
+	.get_func_proto		= inet_lookup_func_proto,
+	.is_valid_access	= inet_lookup_is_valid_access,
+	.convert_ctx_access	= inet_lookup_convert_ctx_access,
+};
