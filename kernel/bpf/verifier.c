@@ -3494,7 +3494,8 @@ static int check_map_func_compatibility(struct bpf_verifier_env *env,
 			goto error;
 		break;
 	case BPF_MAP_TYPE_REUSEPORT_SOCKARRAY:
-		if (func_id != BPF_FUNC_sk_select_reuseport)
+		if (func_id != BPF_FUNC_sk_select_reuseport &&
+		    func_id != BPF_FUNC_redirect_lookup)
 			goto error;
 		break;
 	case BPF_MAP_TYPE_QUEUE:
@@ -3576,6 +3577,10 @@ static int check_map_func_compatibility(struct bpf_verifier_env *env,
 	case BPF_FUNC_sk_storage_get:
 	case BPF_FUNC_sk_storage_delete:
 		if (map->map_type != BPF_MAP_TYPE_SK_STORAGE)
+			goto error;
+		break;
+	case BPF_FUNC_redirect_lookup:
+		if (map->map_type != BPF_MAP_TYPE_REUSEPORT_SOCKARRAY)
 			goto error;
 		break;
 	default:

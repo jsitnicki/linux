@@ -171,6 +171,9 @@ struct net {
 #ifdef CONFIG_XDP_SOCKETS
 	struct netns_xdp	xdp;
 #endif
+#ifdef CONFIG_BPF_SYSCALL
+	struct bpf_prog __rcu	*inet_lookup_prog;
+#endif
 	struct sock		*diag_nlsk;
 	atomic_t		fnhe_genid;
 } __randomize_layout;

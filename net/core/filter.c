@@ -8934,4 +8934,260 @@ const struct bpf_verifier_ops sk_reuseport_verifier_ops = {
 
 const struct bpf_prog_ops sk_reuseport_prog_ops = {
 };
+
+static DEFINE_MUTEX(inet_lookup_prog_mutex);
+
+BPF_CALL_4(redirect_lookup, struct bpf_inet_lookup_kern *, ctx,
+	   struct bpf_map *, map, void *, key, u64, flags)
+{
+	struct sock *redir_sk;
+
+	/* Lookup socket in map */
+	redir_sk = map->ops->map_lookup_elem(map, key);
+	if (!redir_sk)
+		return -ENOENT;
+
+	/* XXX: Check if not unhashed from map? */
+
+	/* Check protocol & family */
+	if (ctx->l4_proto != redir_sk->sk_protocol)
+		return -EPROTOTYPE;
+	if (ctx->family != redir_sk->sk_family)
+		return -EAFNOSUPPORT;
+
+	/* Store socket in context */
+	ctx->redir_sk = redir_sk;
+
+	/* Signal redirect action */
+	return BPF_REDIRECT;
+}
+
+static const struct bpf_func_proto bpf_redirect_lookup_proto = {
+	.func		= redirect_lookup,
+	.gpl_only	= false,
+	.ret_type	= RET_INTEGER,
+	.arg1_type	= ARG_PTR_TO_CTX,
+	.arg2_type	= ARG_CONST_MAP_PTR,
+	.arg3_type	= ARG_PTR_TO_MAP_KEY,
+	.arg4_type	= ARG_ANYTHING,
+};
+
+static const struct bpf_func_proto *
+inet_lookup_func_proto(enum bpf_func_id func_id,
+		       const struct bpf_prog *prog)
+{
+	switch (func_id) {
+	case BPF_FUNC_redirect_lookup:
+		return &bpf_redirect_lookup_proto;
+	default:
+		return bpf_base_func_proto(func_id);
+	}
+}
+
+int inet_lookup_attach_bpf(const union bpf_attr *attr, struct bpf_prog *prog)
+{
+	struct net *net = current->nsproxy->net_ns;
+	struct bpf_prog *attached;
+
+	mutex_lock(&inet_lookup_prog_mutex);
+	attached = rcu_dereference_protected(net->inet_lookup_prog,
+					     lockdep_is_held(&inet_lookup_prog_mutex));
+	if (attached) {
+		/* Only one BPF program can be attached at a time */
+		mutex_unlock(&inet_lookup_prog_mutex);
+		return -EEXIST;
+	}
+	rcu_assign_pointer(net->inet_lookup_prog, prog);
+	mutex_unlock(&inet_lookup_prog_mutex);
+	return 0;
+}
+
+int inet_lookup_detach_bpf(const union bpf_attr *attr)
+{
+	struct net *net = current->nsproxy->net_ns;
+	struct bpf_prog *attached;
+
+	mutex_lock(&inet_lookup_prog_mutex);
+	attached = rcu_dereference_protected(net->inet_lookup_prog,
+					     lockdep_is_held(&inet_lookup_prog_mutex));
+	if (!attached) {
+		mutex_unlock(&inet_lookup_prog_mutex);
+		return -ENOENT;
+	}
+	bpf_prog_put(attached);
+	RCU_INIT_POINTER(net->inet_lookup_prog, NULL);
+	mutex_unlock(&inet_lookup_prog_mutex);
+
+	return 0;
+}
+
+int inet_lookup_query_bpf(const union bpf_attr *attr,
+			  union bpf_attr __user *uattr)
+{
+	return -EOPNOTSUPP;	/* TODO: Not implemented. */
+}
+
+static bool inet_lookup_is_valid_access(int off, int size,
+					enum bpf_access_type type,
+					const struct bpf_prog *prog,
+					struct bpf_insn_access_aux *info)
+{
+	const int size_default = sizeof(__u32);
+
+	if (off < 0 || off >= sizeof(struct bpf_inet_lookup))
+		return false;
+	if (off % size != 0)
+		return false;
+
+	switch (off) {
+	case bpf_ctx_range(struct bpf_inet_lookup, remote_ip4):
+	case bpf_ctx_range_till(struct bpf_inet_lookup,
+				remote_ip6[0], remote_ip6[3]):
+		if (type != BPF_READ)
+			return false;
+		if (!bpf_ctx_narrow_access_ok(off, size, size_default))
+			return false;
+		bpf_ctx_record_field_size(info, size_default);
+		break;
+
+	case bpf_ctx_range(struct bpf_inet_lookup, local_ip4):
+	case bpf_ctx_range_till(struct bpf_inet_lookup,
+				local_ip6[0], local_ip6[3]):
+		if (type == BPF_READ) {
+			if (!bpf_ctx_narrow_access_ok(off, size, size_default))
+				return false;
+			bpf_ctx_record_field_size(info, size_default);
+		} else {
+			if (size != size_default)
+				return false;
+		}
+		break;
+
+	case bpf_ctx_range(struct bpf_inet_lookup, family):
+	case bpf_ctx_range(struct bpf_inet_lookup, remote_port):
+		if (type != BPF_READ)
+			return false;
+		if (size != size_default)
+			return false;
+		break;
+
+	case bpf_ctx_range(struct bpf_inet_lookup, local_port):
+		if (size != size_default)
+			return false;
+		break;
+
+	default:
+		return false;
+	}
+
+	return true;
+}
+
+#define LOAD_FIELD_OFF(STRUCT, FIELD, OFF) ({				\
+	*insn++ = BPF_LDX_MEM(BPF_FIELD_SIZEOF(STRUCT, FIELD),		\
+			      si->dst_reg, si->src_reg,			\
+			      bpf_target_off(STRUCT, FIELD,		\
+					     FIELD_SIZEOF(STRUCT,	\
+							  FIELD),	\
+					     target_size) + (OFF));	\
+})
+
+#define LOAD_FIELD(STRUCT, FIELD) LOAD_FIELD_OFF(STRUCT, FIELD, 0)
+
+#define STORE_FIELD_OFF(STRUCT, FIELD, OFF) ({				\
+	*insn++ = BPF_STX_MEM(BPF_FIELD_SIZEOF(STRUCT, FIELD),		\
+			      si->dst_reg, si->src_reg,			\
+			      bpf_target_off(STRUCT, FIELD,		\
+					     FIELD_SIZEOF(STRUCT,	\
+							  FIELD),	\
+					     target_size) + (OFF));	\
+})
+
+#define STORE_FIELD(STRUCT, FIELD) STORE_FIELD_OFF(STRUCT, FIELD, 0)
+
+/* TODO: Handle 1,2-byte reads from {local,remote}_ip[46]. */
+static u32 inet_lookup_convert_ctx_access(enum bpf_access_type type,
+					  const struct bpf_insn *si,
+					  struct bpf_insn *insn_buf,
+					  struct bpf_prog *prog,
+					  u32 *target_size)
+{
+	struct bpf_insn *insn = insn_buf;
+	int off;
+
+	switch (si->off) {
+	case offsetof(struct bpf_inet_lookup, family):
+		LOAD_FIELD(struct bpf_inet_lookup_kern, family);
+		break;
+
+	case offsetof(struct bpf_inet_lookup, remote_ip4):
+		LOAD_FIELD(struct bpf_inet_lookup_kern, saddr);
+		break;
+
+	case offsetof(struct bpf_inet_lookup, local_ip4):
+		if (type == BPF_READ)
+			LOAD_FIELD(struct bpf_inet_lookup_kern, daddr);
+		else
+			STORE_FIELD(struct bpf_inet_lookup_kern, daddr);
+		break;
+
+	case bpf_ctx_range_till(struct bpf_inet_lookup,
+				remote_ip6[0], remote_ip6[3]):
+#if IS_ENABLED(CONFIG_IPV6)
+		off = si->off;
+		off -= offsetof(struct bpf_inet_lookup, remote_ip6[0]);
+
+		LOAD_FIELD_OFF(struct bpf_inet_lookup_kern,
+			       saddr6.s6_addr32[0], off);
+#else
+		(void)off;
+
+		*insn++ = BPF_MOV32_IMM(si->dst_reg, 0);
+#endif
+		break;
+
+	case bpf_ctx_range_till(struct bpf_inet_lookup,
+				local_ip6[0], local_ip6[3]):
+#if IS_ENABLED(CONFIG_IPV6)
+		off = si->off;
+		off -= offsetof(struct bpf_inet_lookup, local_ip6[0]);
+
+		if (type == BPF_READ)
+			LOAD_FIELD_OFF(struct bpf_inet_lookup_kern,
+				       daddr6.s6_addr32[0], off);
+		else
+			STORE_FIELD_OFF(struct bpf_inet_lookup_kern,
+					daddr6.s6_addr32[0], off);
+#else
+		(void)off;
+
+		if (type == BPF_READ)
+			*insn++ = BPF_MOV32_IMM(si->dst_reg, 0);
+#endif
+		break;
+
+	case offsetof(struct bpf_inet_lookup, remote_port):
+		LOAD_FIELD(struct bpf_inet_lookup_kern, sport);
+		break;
+
+	case offsetof(struct bpf_inet_lookup, local_port):
+		if (type == BPF_READ)
+			LOAD_FIELD(struct bpf_inet_lookup_kern, hnum);
+		else
+			STORE_FIELD(struct bpf_inet_lookup_kern, hnum);
+		break;
+	}
+
+	return insn - insn_buf;
+}
+
+const struct bpf_prog_ops inet_lookup_prog_ops = {
+};
+
+const struct bpf_verifier_ops inet_lookup_verifier_ops = {
+	.get_func_proto		= inet_lookup_func_proto,
+	.is_valid_access	= inet_lookup_is_valid_access,
+	.convert_ctx_access	= inet_lookup_convert_ctx_access,
+};
+
 #endif /* CONFIG_INET */

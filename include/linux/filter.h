@@ -1216,4 +1216,23 @@ struct bpf_sockopt_kern {
 	s32		retval;
 };
 
+#ifdef CONFIG_INET
+struct bpf_inet_lookup_kern {
+	unsigned short	family;
+	u8		l4_proto;
+	__be32		saddr;
+	struct in6_addr	saddr6;
+	__be16		sport;
+	__be32		daddr;
+	struct in6_addr	daddr6;
+	unsigned short	hnum;
+	struct sock	*redir_sk;
+};
+
+int inet_lookup_attach_bpf(const union bpf_attr *attr, struct bpf_prog *prog);
+int inet_lookup_detach_bpf(const union bpf_attr *attr);
+int inet_lookup_query_bpf(const union bpf_attr *attr,
+			  union bpf_attr __user *uattr);
+#endif
+
 #endif /* __LINUX_FILTER_H__ */
