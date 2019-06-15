@@ -307,8 +307,21 @@ struct sock *__inet_lookup_listener(struct net *net,
 				    const int dif, const int sdif)
 {
 	struct inet_listen_hashbucket *ilb2;
-	struct sock *result = NULL;
+	struct sock *sk, *result;
 	unsigned int hash2;
+
+	/* Lookup redirect from BPF */
+	result = inet_lookup_run_bpf(net, hashinfo->protocol,
+				     saddr, sport, daddr, hnum);
+	if (IS_ERR(result))
+		goto done;
+	if (result) {
+		sk = lookup_reuseport(net, result, skb, doff,
+				      saddr, sport, daddr, hnum);
+		if (sk)
+			result = sk;
+		goto done;
+	}
 
 	hash2 = ipv4_portaddr_hash(net, daddr, hnum);
 	ilb2 = inet_lhash2_bucket(hashinfo, hash2);
