@@ -422,4 +422,40 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 
 int inet_hash_connect(struct inet_timewait_death_row *death_row,
 		      struct sock *sk);
+
+static inline struct sock *bpf_sk_lookup_run(struct net *net,
+					     struct bpf_sk_lookup_kern *ctx)
+{
+	struct bpf_prog *prog;
+	int ret = BPF_OK;
+
+	rcu_read_lock();
+	prog = rcu_dereference(net->sk_lookup_prog);
+	if (prog)
+		ret = BPF_PROG_RUN(prog, ctx);
+	rcu_read_unlock();
+
+	if (ret == BPF_DROP)
+		return ERR_PTR(-ECONNREFUSED);
+	if (ret == BPF_REDIRECT)
+		return ctx->selected_sk;
+	return NULL;
+}
+
+static inline struct sock *inet_lookup_run_bpf(struct net *net, u8 protocol,
+					       __be32 saddr, __be16 sport,
+					       __be32 daddr, u16 dport)
+{
+	struct bpf_sk_lookup_kern ctx = {
+		.family		= AF_INET,
+		.protocol	= protocol,
+		.v4.saddr	= saddr,
+		.v4.daddr	= daddr,
+		.sport		= sport,
+		.dport		= dport,
+	};
+
+	return bpf_sk_lookup_run(net, &ctx);
+}
+
 #endif /* _INET_HASHTABLES_H */
