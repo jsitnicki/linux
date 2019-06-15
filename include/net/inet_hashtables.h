@@ -414,4 +414,39 @@ int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 
 int inet_hash_connect(struct inet_timewait_death_row *death_row,
 		      struct sock *sk);
+
+#ifdef CONFIG_BPF_SYSCALL
+static inline struct sock *inet_lookup_run_bpf(const struct net *net, u8 proto,
+					       __be32 saddr, __be16 sport,
+					       __be32 daddr, unsigned short hnum)
+{
+	struct bpf_inet_lookup_kern ctx = {
+		.family		= AF_INET,
+		.l4_proto	= proto,
+		.saddr		= saddr,
+		.sport		= sport,
+		.daddr		= daddr,
+		.hnum		= hnum,
+	};
+	struct bpf_prog *prog;
+	int ret = BPF_OK;
+
+	rcu_read_lock();
+	prog = rcu_dereference(net->inet_lookup_prog);
+	if (prog)
+		ret = BPF_PROG_RUN(prog, &ctx);
+	rcu_read_unlock();
+
+	return ret == BPF_REDIRECT ? ctx.redir_sk : NULL;
+
+}
+#else
+static inline struct sock *inet_lookup_run_bpf(struct net *net, u8 proto,
+					       __be32 saddr, __be16 sport,
+					       __be32 daddr, unsigned short hnum)
+{
+	return NULL;
+}
+#endif	/* CONFIG_BPF_SYSCALL */
+
 #endif /* _INET_HASHTABLES_H */
