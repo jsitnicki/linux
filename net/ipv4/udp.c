@@ -467,6 +467,7 @@ struct sock *__udp4_lib_lookup(struct net *net, __be32 saddr,
 	struct udp_hslot *hslot2;
 	bool exact_dif = udp_lib_exact_dif_match(net, skb);
 
+	inet_lookup_run_bpf(net, saddr, sport, &daddr, &hnum);
 	hash2 = ipv4_portaddr_hash(net, daddr, hnum);
 	slot2 = hash2 & udptable->mask;
 	hslot2 = &udptable->hash2[slot2];

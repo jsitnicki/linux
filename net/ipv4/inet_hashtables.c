@@ -300,24 +300,27 @@ struct sock *__inet_lookup_listener(struct net *net,
 				    const int dif, const int sdif)
 {
 	struct inet_listen_hashbucket *ilb2;
+	unsigned short hnum2 = hnum;
 	struct sock *result = NULL;
+	__be32 daddr2 = daddr;
 	unsigned int hash2;
 
-	hash2 = ipv4_portaddr_hash(net, daddr, hnum);
+	inet_lookup_run_bpf(net, saddr, sport, &daddr2, &hnum2);
+	hash2 = ipv4_portaddr_hash(net, daddr2, hnum2);
 	ilb2 = inet_lhash2_bucket(hashinfo, hash2);
 
 	result = inet_lhash2_lookup(net, ilb2, skb, doff,
-				    saddr, sport, daddr, hnum,
+				    saddr, sport, daddr2, hnum2,
 				    dif, sdif);
 	if (result)
 		goto done;
 
 	/* Lookup lhash2 with INADDR_ANY */
-	hash2 = ipv4_portaddr_hash(net, htonl(INADDR_ANY), hnum);
+	hash2 = ipv4_portaddr_hash(net, htonl(INADDR_ANY), hnum2);
 	ilb2 = inet_lhash2_bucket(hashinfo, hash2);
 
 	result = inet_lhash2_lookup(net, ilb2, skb, doff,
-				    saddr, sport, htonl(INADDR_ANY), hnum,
+				    saddr, sport, htonl(INADDR_ANY), hnum2,
 				    dif, sdif);
 done:
 	if (unlikely(IS_ERR(result)))
