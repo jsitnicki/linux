@@ -29,6 +29,14 @@
 
 #define REUSEPORT_ARRAY_SIZE 32
 
+#define DEBUG 1
+
+#ifdef DEBUG
+#  define debug(args...) fprintf(stderr, "[X] " args)
+#else
+#  define debug(args...)
+#endif
+
 struct inet_addr {
 	const char *ip;
 	unsigned short port;
@@ -369,6 +377,34 @@ static void update_redir_map(int map_fd, int index, int sock_fd)
 		error(1, errno, "failed to update redir_map @ %d", index);
 }
 
+static int lookup_redir_map(int map_fd, int index)
+{
+	uint64_t value;
+	int err;
+
+	err = bpf_map_lookup_elem(map_fd, &index, &value);
+	if (err && errno == ENOENT)
+		return -1;
+	if (err)
+		error(1, errno, "failed to lookup redir_map @ %d", index);
+
+	return (int)value;
+}
+
+static uint64_t socket_cookie(int sock_fd)
+{
+	uint64_t cookie;
+	socklen_t len;
+	int err;
+
+	len = sizeof(cookie);
+	err = getsockopt(sock_fd, SOL_SOCKET, SO_COOKIE, &cookie, &len);
+	if (err)
+		error(1, errno, "failed to get SO_COOKIE");
+
+	return cookie;
+}
+
 static void run_test(const struct test *t, struct bpf_object *obj,
 		     int redir_map)
 {
@@ -380,7 +416,12 @@ static void run_test(const struct test *t, struct bpf_object *obj,
 	server_fd = make_server(t->socket.family, t->socket.type,
 				t->recv_at.ip, t->recv_at.port);
 
+	debug("server_fd = %d, cookie = %lu\n", server_fd, socket_cookie(server_fd));
+	debug("redir_map[0] before update = %d\n", lookup_redir_map(redir_map, 0));
+
 	update_redir_map(redir_map, 0, server_fd);
+
+	debug("redir_map[0] after update = %d\n", lookup_redir_map(redir_map, 0));
 
 	client_fd = make_client(t->socket.family, t->socket.type,
 				t->send_to.ip, t->send_to.port);
@@ -392,6 +433,8 @@ static void run_test(const struct test *t, struct bpf_object *obj,
 
 	close(client_fd);
 	close(server_fd);
+
+	debug("redir_map[0] after close = %d\n", lookup_redir_map(redir_map, 0));
 }
 
 static int find_redir_map(struct bpf_object *obj)
