@@ -460,8 +460,8 @@ struct sock *__udp4_lib_lookup(struct net *net, __be32 saddr,
 		__be16 sport, __be32 daddr, __be16 dport, int dif,
 		int sdif, struct udp_table *udptable, struct sk_buff *skb)
 {
-	struct sock *result;
 	unsigned short hnum = ntohs(dport);
+	struct sock *sk, *sk2, *result;
 	unsigned int hash2, slot2;
 	struct udp_hslot *hslot2;
 
@@ -469,18 +469,41 @@ struct sock *__udp4_lib_lookup(struct net *net, __be32 saddr,
 	slot2 = hash2 & udptable->mask;
 	hslot2 = &udptable->hash2[slot2];
 
-	result = udp4_lib_lookup2(net, saddr, sport,
-				  daddr, hnum, dif, sdif,
-				  hslot2, skb);
-	if (!result) {
-		hash2 = ipv4_portaddr_hash(net, htonl(INADDR_ANY), hnum);
-		slot2 = hash2 & udptable->mask;
-		hslot2 = &udptable->hash2[slot2];
+	/* Lookup connected or non-wildcard socket */
+	sk = udp4_lib_lookup2(net, saddr, sport,
+			      daddr, hnum, dif, sdif,
+			      hslot2, skb);
+	if (!IS_ERR_OR_NULL(sk) && sk->sk_state == TCP_ESTABLISHED)
+		return sk;
 
-		result = udp4_lib_lookup2(net, saddr, sport,
-					  htonl(INADDR_ANY), hnum, dif, sdif,
-					  hslot2, skb);
+	/* Lookup redirect from BPF */
+	result = inet_lookup_run_bpf(net, udptable->protocol,
+				     saddr, sport, daddr, hnum);
+	if (IS_ERR(result))
+		return NULL;
+	if (result) {
+		sk2 = lookup_reuseport(net, result, skb,
+				       saddr, sport, daddr, hnum);
+		if (sk2)
+			result = sk2;
+		goto done;
 	}
+
+	/* Got non-wildcard socket or error on first lookup */
+	if (sk) {
+		result = sk;
+		goto done;
+	}
+
+	/* Lookup wildcard sockets */
+	hash2 = ipv4_portaddr_hash(net, htonl(INADDR_ANY), hnum);
+	slot2 = hash2 & udptable->mask;
+	hslot2 = &udptable->hash2[slot2];
+
+	result = udp4_lib_lookup2(net, saddr, sport,
+				  htonl(INADDR_ANY), hnum, dif, sdif,
+				  hslot2, skb);
+done:
 	if (IS_ERR(result))
 		return NULL;
 	return result;
