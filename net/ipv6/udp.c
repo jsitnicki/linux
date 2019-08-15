@@ -198,27 +198,49 @@ struct sock *__udp6_lib_lookup(struct net *net,
 			       struct sk_buff *skb)
 {
 	unsigned short hnum = ntohs(dport);
+	struct sock *sk, *sk2, *result;
 	unsigned int hash2, slot2;
 	struct udp_hslot *hslot2;
-	struct sock *result;
 
 	hash2 = ipv6_portaddr_hash(net, daddr, hnum);
 	slot2 = hash2 & udptable->mask;
 	hslot2 = &udptable->hash2[slot2];
 
-	result = udp6_lib_lookup2(net, saddr, sport,
-				  daddr, hnum, dif, sdif,
-				  hslot2, skb);
-	if (!result) {
-		hash2 = ipv6_portaddr_hash(net, &in6addr_any, hnum);
-		slot2 = hash2 & udptable->mask;
+	/* Lookup connected or non-wildcard sockets */
+	sk = udp6_lib_lookup2(net, saddr, sport,
+			      daddr, hnum, dif, sdif,
+			      hslot2, skb);
+	if (!IS_ERR_OR_NULL(sk) && sk->sk_state == TCP_ESTABLISHED)
+		return sk;
 
-		hslot2 = &udptable->hash2[slot2];
-
-		result = udp6_lib_lookup2(net, saddr, sport,
-					  &in6addr_any, hnum, dif, sdif,
-					  hslot2, skb);
+	/* Lookup redirect from BPF */
+	result = inet6_lookup_run_bpf(net, udptable->protocol,
+				      saddr, sport, daddr, hnum);
+	if (IS_ERR(result))
+		return NULL;
+	if (result) {
+		sk2 = lookup_reuseport(net, result, skb,
+				       saddr, sport, daddr, hnum);
+		if (sk2)
+			result = sk2;
+		goto done;
 	}
+
+	/* Got non-wildcard socket or error on first lookup */
+	if (sk) {
+		result = sk;
+		goto done;
+	}
+
+	/* Lookup wildcard sockets */
+	hash2 = ipv6_portaddr_hash(net, &in6addr_any, hnum);
+	slot2 = hash2 & udptable->mask;
+	hslot2 = &udptable->hash2[slot2];
+
+	result = udp6_lib_lookup2(net, saddr, sport,
+				  &in6addr_any, hnum, dif, sdif,
+				  hslot2, skb);
+done:
 	if (IS_ERR(result))
 		return NULL;
 	return result;
