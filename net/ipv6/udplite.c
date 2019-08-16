@@ -14,7 +14,7 @@
 
 static int udplitev6_rcv(struct sk_buff *skb)
 {
-	return __udp6_lib_rcv(skb, &udplite_table, IPPROTO_UDPLITE);
+	return __udp6_lib_rcv(skb, &udplite_table);
 }
 
 static int udplitev6_err(struct sk_buff *skb,
