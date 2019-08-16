@@ -14,12 +14,12 @@
 #include <linux/proc_fs.h>
 #include "udp_impl.h"
 
-struct udp_table 	udplite_table __read_mostly;
+struct udp_table udplite_table __read_mostly = { .protocol = IPPROTO_UDPLITE };
 EXPORT_SYMBOL(udplite_table);
 
 static int udplite_rcv(struct sk_buff *skb)
 {
-	return __udp4_lib_rcv(skb, &udplite_table, IPPROTO_UDPLITE);
+	return __udp4_lib_rcv(skb, &udplite_table);
 }
 
 static int udplite_err(struct sk_buff *skb, u32 info)

@@ -63,16 +63,18 @@ struct udp_hslot {
 /**
  *	struct udp_table - UDP table
  *
- *	@hash:	hash table, sockets are hashed on (local port)
- *	@hash2:	hash table, sockets are hashed on (local port, local address)
- *	@mask:	number of slots in hash tables, minus 1
- *	@log:	log2(number of slots in hash table)
+ *	@hash:		hash table, sockets are hashed on (local port)
+ *	@hash2:		hash table, sockets are hashed on (local port, local address)
+ *	@mask:		number of slots in hash tables, minus 1
+ *	@log:		log2(number of slots in hash table)
+ *	@protocol:	layer 4 protocol of the stored sockets
  */
 struct udp_table {
 	struct udp_hslot	*hash;
 	struct udp_hslot	*hash2;
 	unsigned int		mask;
 	unsigned int		log;
+	int			protocol;
 };
 extern struct udp_table udp_table;
 void udp_table_init(struct udp_table *, const char *);
