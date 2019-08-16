@@ -113,7 +113,7 @@
 #include <net/addrconf.h>
 #include <net/udp_tunnel.h>
 
-struct udp_table udp_table __read_mostly;
+struct udp_table udp_table __read_mostly = { .protocol = IPPROTO_UDP };
 EXPORT_SYMBOL(udp_table);
 
 long sysctl_udp_mem[3] __read_mostly;
@@ -2106,8 +2106,7 @@ EXPORT_SYMBOL(udp_sk_rx_dst_set);
 static int __udp4_lib_mcast_deliver(struct net *net, struct sk_buff *skb,
 				    struct udphdr  *uh,
 				    __be32 saddr, __be32 daddr,
-				    struct udp_table *udptable,
-				    int proto)
+				    struct udp_table *udptable)
 {
 	struct sock *sk, *first = NULL;
 	unsigned short hnum = ntohs(uh->dest);
@@ -2163,7 +2162,7 @@ start_lookup:
 	} else {
 		kfree_skb(skb);
 		__UDP_INC_STATS(net, UDP_MIB_IGNOREDMULTI,
-				proto == IPPROTO_UDPLITE);
+				udptable->protocol == IPPROTO_UDPLITE);
 	}
 	return 0;
 }
@@ -2240,8 +2239,7 @@ static int udp_unicast_rcv_skb(struct sock *sk, struct sk_buff *skb,
  *	All we need to do is get the socket, and then do a checksum.
  */
 
-int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
-		   int proto)
+int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable)
 {
 	struct sock *sk;
 	struct udphdr *uh;
@@ -2249,6 +2247,7 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 	struct rtable *rt = skb_rtable(skb);
 	__be32 saddr, daddr;
 	struct net *net = dev_net(skb->dev);
+	int proto = udptable->protocol;
 
 	/*
 	 *  Validate the packet.
@@ -2289,7 +2288,7 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
 
 	if (rt->rt_flags & (RTCF_BROADCAST|RTCF_MULTICAST))
 		return __udp4_lib_mcast_deliver(net, skb, uh,
-						saddr, daddr, udptable, proto);
+						saddr, daddr, udptable);
 
 	sk = __udp4_lib_lookup_skb(skb, uh->source, uh->dest, udptable);
 	if (sk)
@@ -2463,7 +2462,7 @@ int udp_v4_early_demux(struct sk_buff *skb)
 
 int udp_rcv(struct sk_buff *skb)
 {
-	return __udp4_lib_rcv(skb, &udp_table, IPPROTO_UDP);
+	return __udp4_lib_rcv(skb, &udp_table);
 }
 
 void udp_destroy_sock(struct sock *sk)
