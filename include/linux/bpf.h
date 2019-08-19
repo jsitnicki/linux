@@ -23,6 +23,7 @@ struct sock;
 struct seq_file;
 struct btf;
 struct btf_type;
+struct mutex;
 
 /* map is generic key/value storage optionally accesible by eBPF programs */
 struct bpf_map_ops {
@@ -1141,5 +1142,12 @@ static inline u32 bpf_xdp_sock_convert_ctx_access(enum bpf_access_type type,
 	return 0;
 }
 #endif /* CONFIG_INET */
+
+int bpf_prog_query_one(struct bpf_prog __rcu **pprog,
+		       const union bpf_attr *attr,
+		       union bpf_attr __user *uattr);
+int bpf_prog_attach_one(struct bpf_prog __rcu **pprog, struct mutex *lock,
+			struct bpf_prog *prog);
+int bpf_prog_detach_one(struct bpf_prog __rcu **pprog, struct mutex *lock);
 
 #endif /* _LINUX_BPF_H */
