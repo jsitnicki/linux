@@ -98,6 +98,7 @@ struct sk_psock {
 	void (*saved_close)(struct sock *sk, long timeout);
 	void (*saved_write_space)(struct sock *sk);
 	struct proto			*sk_proto;
+	const struct inet_connection_sock_af_ops *icsk_af_ops;
 	struct sk_psock_work_state	work_state;
 	struct work_struct		work;
 	union {
@@ -345,23 +346,30 @@ static inline void sk_psock_cork_free(struct sk_psock *psock)
 
 static inline void sk_psock_update_proto(struct sock *sk,
 					 struct sk_psock *psock,
-					 struct proto *ops)
+					 struct proto *ops,
+					 struct inet_connection_sock_af_ops *af_ops)
 {
+	struct inet_connection_sock *icsk = inet_csk(sk);
+
 	psock->saved_unhash = sk->sk_prot->unhash;
 	psock->saved_close = sk->sk_prot->close;
 	psock->saved_write_space = sk->sk_write_space;
 
 	psock->sk_proto = sk->sk_prot;
 	sk->sk_prot = ops;
+
+	psock->icsk_af_ops = icsk->icsk_af_ops;
+	icsk->icsk_af_ops = af_ops;
 }
 
 static inline void sk_psock_restore_proto(struct sock *sk,
 					  struct sk_psock *psock)
 {
+	struct inet_connection_sock *icsk = inet_csk(sk);
+
 	sk->sk_write_space = psock->saved_write_space;
 
 	if (psock->sk_proto) {
-		struct inet_connection_sock *icsk = inet_csk(sk);
 		bool has_ulp = !!icsk->icsk_ulp_data;
 
 		if (has_ulp)
@@ -369,6 +377,11 @@ static inline void sk_psock_restore_proto(struct sock *sk,
 		else
 			sk->sk_prot = psock->sk_proto;
 		psock->sk_proto = NULL;
+	}
+
+	if (psock->icsk_af_ops) {
+		icsk->icsk_af_ops = psock->icsk_af_ops;
+		psock->icsk_af_ops = NULL;
 	}
 }
 
