@@ -271,7 +271,9 @@ static struct sock *__sock_map_lookup_elem(struct bpf_map *map, u32 key)
 
 static void *sock_map_lookup(struct bpf_map *map, void *key)
 {
-	return ERR_PTR(-EOPNOTSUPP);
+	u32 index = *(u32 *)key;
+
+	return __sock_map_lookup_elem(map, index);
 }
 
 static int __sock_map_delete(struct bpf_stab *stab, struct sock *sk_test,
