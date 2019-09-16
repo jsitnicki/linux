@@ -415,9 +415,12 @@ static int sock_map_update_elem(struct bpf_map *map, void *key,
 		ret = -EINVAL;
 		goto out;
 	}
-	if (!sock_map_sk_is_suitable(sk) ||
-	    sk->sk_state != TCP_ESTABLISHED) {
+	if (!sock_map_sk_is_suitable(sk)) {
 		ret = -EOPNOTSUPP;
+		goto out;
+	}
+	if (!sk_hashed(sk)) {
+		ret = -EINVAL;
 		goto out;
 	}
 
