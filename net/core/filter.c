@@ -8723,6 +8723,8 @@ BPF_CALL_4(sk_select_reuseport, struct sk_reuseport_kern *, reuse_kern,
 	selected_sk = map->ops->map_lookup_elem(map, key);
 	if (!selected_sk)
 		return -ENOENT;
+	if (!sock_flag(selected_sk, SOCK_RCU_FREE))
+		return -EINVAL;
 
 	reuse = rcu_dereference(selected_sk->sk_reuseport_cb);
 	if (!reuse)
