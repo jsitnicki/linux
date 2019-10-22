@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /* Copyright (c) 2018 Facebook */
 
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdbool.h>
@@ -28,6 +29,12 @@
 #define TCP_SYNCOOKIE_SYSCTL "/proc/sys/net/ipv4/tcp_syncookies"
 #define TCP_FO_SYSCTL "/proc/sys/net/ipv4/tcp_fastopen"
 #define REUSEPORT_ARRAY_SIZE 32
+
+#define BIND_TO_INANY		true
+#define BIND_TO_LOOPBACK	(!BIND_TO_INANY)
+
+static enum bpf_map_type cfg_map_type = BPF_MAP_TYPE_REUSEPORT_SOCKARRAY;
+static unsigned int cfg_sock_types = (1 << SOCK_STREAM) | (1 << SOCK_DGRAM);
 
 static int result_map, tmp_index_ovr_map, linum_map, data_check_map;
 static enum result expected_results[NR_RESULTS];
@@ -61,7 +68,7 @@ static void create_maps(void)
 
 	/* Creating reuseport_array */
 	attr.name = "reuseport_array";
-	attr.map_type = BPF_MAP_TYPE_REUSEPORT_SOCKARRAY;
+	attr.map_type = cfg_map_type;
 	attr.key_size = sizeof(__u32);
 	attr.value_size = sizeof(__u32);
 	attr.max_entries = REUSEPORT_ARRAY_SIZE;
@@ -680,53 +687,131 @@ static void cleanup(void)
 	bpf_object__close(obj);
 }
 
+static const char *family_to_str(int family)
+{
+	switch (family) {
+	case AF_INET:
+		return "IPv4";
+	case AF_INET6:
+		return "IPv6";
+	default:
+		return "unknown";
+	}
+}
+
+static const char *type_to_str(int type)
+{
+	switch (type) {
+	case SOCK_STREAM:
+		return "TCP";
+	case SOCK_DGRAM:
+		return "UDP";
+	default:
+		return "unknown";
+	}
+}
+
+static void test_one(int family, int type, bool inany)
+{
+	int err;
+
+	printf("######## %s/%s %-8s ########\n",
+	       family_to_str(family), type_to_str(type),
+	       inany ? "INANY" : "LOOPBACK");
+
+	setup_per_test(type, family, inany);
+
+	test_err_inner_map(type, family);
+
+	/* Install reuseport_array to the outer_map */
+	err = bpf_map_update_elem(outer_map, &index_zero, &reuseport_array,
+				  BPF_ANY);
+	CHECK(err == -1, "update_elem(outer_map)",
+	      "err:%d errno:%d\n", err, errno);
+
+	test_err_skb_data(type, family);
+	test_err_sk_select_port(type, family);
+	test_pass(type, family);
+	test_syncookie(type, family);
+	test_pass_on_err(type, family);
+	/* Must be the last test */
+	test_detach_bpf(type, family);
+
+	cleanup_per_test();
+	printf("\n");
+}
+
 static void test_all(void)
 {
-	/* Extra SOCK_STREAM to test bind_inany==true */
-	const int types[] = { SOCK_STREAM, SOCK_DGRAM, SOCK_STREAM };
-	const char * const type_strings[] = { "TCP", "UDP", "TCP" };
-	const char * const family_strings[] = { "IPv6", "IPv4" };
+	const int types[] = { SOCK_STREAM, SOCK_DGRAM };
 	const unsigned short families[] = { AF_INET6, AF_INET };
-	const bool bind_inany[] = { false, false, true };
-	int t, f, err;
+	int t, f;
 
 	for (f = 0; f < ARRAY_SIZE(families); f++) {
 		unsigned short family = families[f];
 
 		for (t = 0; t < ARRAY_SIZE(types); t++) {
-			bool inany = bind_inany[t];
 			int type = types[t];
 
-			printf("######## %s/%s %s ########\n",
-			       family_strings[f], type_strings[t],
-				inany ? " INANY  " : "LOOPBACK");
+			/* Socket type excluded from tests? */
+			if (~cfg_sock_types & (1 << type))
+				continue;
 
-			setup_per_test(type, family, inany);
-
-			test_err_inner_map(type, family);
-
-			/* Install reuseport_array to the outer_map */
-			err = bpf_map_update_elem(outer_map, &index_zero,
-						  &reuseport_array, BPF_ANY);
-			CHECK(err == -1, "update_elem(outer_map)",
-			      "err:%d errno:%d\n", err, errno);
-
-			test_err_skb_data(type, family);
-			test_err_sk_select_port(type, family);
-			test_pass(type, family);
-			test_syncookie(type, family);
-			test_pass_on_err(type, family);
-			/* Must be the last test */
-			test_detach_bpf(type, family);
-
-			cleanup_per_test();
-			printf("\n");
+			test_one(family, type, BIND_TO_LOOPBACK);
+			test_one(family, type, BIND_TO_INANY);
 		}
 	}
 }
 
-int main(int argc, const char **argv)
+static void __attribute__((noreturn)) usage(void)
 {
+	fprintf(stderr,
+		"Usage: %s [-m reuseport_sockarray|sockmap] [-t] [-u]\n",
+		program_invocation_short_name);
+	exit(1);
+}
+
+static enum bpf_map_type parse_map_type(const char *optarg)
+{
+	if (!strcmp(optarg, "reuseport_sockarray"))
+		return BPF_MAP_TYPE_REUSEPORT_SOCKARRAY;
+	if (!strcmp(optarg, "sockmap"))
+		return BPF_MAP_TYPE_SOCKMAP;
+
+	return BPF_MAP_TYPE_UNSPEC;
+}
+
+static void parse_opts(int argc, char **argv)
+{
+	unsigned int sock_types = 0;
+	int c;
+
+	while ((c = getopt(argc, argv, "hm:tu")) != -1) {
+		switch (c) {
+		case 'h':
+			usage();
+			break;
+		case 'm':
+			cfg_map_type = parse_map_type(optarg);
+			break;
+		case 't':
+			sock_types |= 1 << SOCK_STREAM;
+			break;
+		case 'u':
+			sock_types |= 1 << SOCK_DGRAM;
+			break;
+		}
+	}
+
+	if (cfg_map_type == BPF_MAP_TYPE_UNSPEC)
+		usage();
+	if (sock_types != 0)
+		cfg_sock_types = sock_types;
+}
+
+int main(int argc, char **argv)
+{
+	parse_opts(argc, argv);
 	create_maps();
 	prepare_bpf_obj();
 	saved_tcp_fo = read_int_sysctl(TCP_FO_SYSCTL);
