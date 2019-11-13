@@ -39,3 +39,4 @@ test_btf_dump
 xdping
 /no_alu32
 /bpf_gcc
+test_sockmap_listen
