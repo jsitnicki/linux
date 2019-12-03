@@ -98,6 +98,9 @@ struct ipv6_packet {
 } __packed;
 extern struct ipv6_packet pkt_v6;
 
+/* Workaround for problem with stdout hijacking to memstream. */
+#define printf(fmt...) fprintf(stdout, fmt)
+
 #define _CHECK(condition, tag, duration, format...) ({			\
 	int __ret = !!(condition);					\
 	int __save_errno = errno;					\
