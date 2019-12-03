@@ -28,7 +28,7 @@ ssize_t get_base_addr() {
 	if (!f)
 		return -errno;
 
-	while (fscanf(f, "%zx-%*x %s %*s\n", &start, buf) == 2) {
+	while (fscanf(f, "%zx-%*x %s %*[^\n]\n", &start, buf) == 2) {
 		if (strcmp(buf, "r-xp") == 0) {
 			fclose(f);
 			return start;
