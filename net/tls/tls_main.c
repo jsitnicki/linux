@@ -740,7 +740,7 @@ static void tls_update(struct sock *sk, struct proto *p)
 	if (likely(ctx))
 		ctx->sk_proto = p;
 	else
-		sk->sk_prot = p;
+		WRITE_ONCE(sk->sk_prot, p);
 }
 
 static int tls_get_info(const struct sock *sk, struct sk_buff *skb)
