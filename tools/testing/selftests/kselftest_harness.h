@@ -755,18 +755,26 @@ void __run_test(struct __test_metadata *t)
 	alarm(0);
 }
 
-static int test_harness_run(int __attribute__((unused)) argc,
-			    char __attribute__((unused)) **argv)
+static int test_harness_run(int argc,
+			    char **argv)
 {
 	struct __test_metadata *t;
 	int ret = 0;
 	unsigned int count = 0;
 	unsigned int pass_count = 0;
+	char **arg;
 
 	/* TODO(wad) add optional arguments similar to gtest. */
 	printf("[==========] Running %u tests from %u test cases.\n",
 	       __test_count, __fixture_count + 1);
 	for (t = __test_list; t; t = t->next) {
+		if (argc > 1) {
+			for (arg = argv + 1; *arg; arg++)
+				if (strcmp(t->name, *arg) == 0)
+					break;
+			if (!*arg)
+				continue;
+		}
 		count++;
 		__run_test(t);
 		if (t->passed)
