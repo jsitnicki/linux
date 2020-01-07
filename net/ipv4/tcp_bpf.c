@@ -535,6 +535,10 @@ static void tcp_bpf_remove(struct sock *sk, struct sk_psock *psock)
 {
 	struct sk_psock_link *link;
 
+	/* Did a child socket inadvertently inherit parent's psock? */
+	if (WARN_ON(sk != psock->sk))
+		return;
+
 	while ((link = sk_psock_link_pop(psock))) {
 		sk_psock_unlink(sk, link);
 		sk_psock_free_link(link);
