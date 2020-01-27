@@ -169,6 +169,14 @@ out:
 	return psock;
 }
 
+static int sock_map_init_hooks(struct sock *sk)
+{
+	if (sk->sk_type == SOCK_DGRAM)
+		return udp_bpf_init(sk);
+	else
+		return tcp_bpf_init(sk);
+}
+
 static int sock_map_link(struct bpf_map *map, struct sk_psock_progs *progs,
 			 struct sock *sk)
 {
@@ -223,7 +231,7 @@ static int sock_map_link(struct bpf_map *map, struct sk_psock_progs *progs,
 	if (msg_parser)
 		psock_set_prog(&psock->progs.msg_parser, msg_parser);
 
-	ret = tcp_bpf_init(sk);
+	ret = sock_map_init_hooks(sk);
 	if (ret < 0)
 		goto out_drop;
 
@@ -270,7 +278,7 @@ static int sock_map_link_no_progs(struct bpf_map *map, struct sock *sk)
 		return -ENOMEM;
 
 init:
-	ret = tcp_bpf_init(sk);
+	ret = sock_map_init_hooks(sk);
 	if (ret < 0)
 		sk_psock_put(sk, psock);
 	return ret;
@@ -397,9 +405,14 @@ static int sock_map_get_next_key(struct bpf_map *map, void *key, void *next)
 	return 0;
 }
 
+static bool sock_map_sk_is_tcp(const struct sock *sk)
+{
+	return sk->sk_type == SOCK_STREAM && sk->sk_protocol == IPPROTO_TCP;
+}
+
 static bool sock_map_redirect_allowed(const struct sock *sk)
 {
-	return sk->sk_state != TCP_LISTEN;
+	return sock_map_sk_is_tcp(sk) && sk->sk_state != TCP_LISTEN;
 }
 
 static int sock_map_update_common(struct bpf_map *map, u32 idx,
@@ -469,15 +482,17 @@ static bool sock_map_op_okay(const struct bpf_sock_ops_kern *ops)
 	       ops->op == BPF_SOCK_OPS_TCP_LISTEN_CB;
 }
 
-static bool sock_map_sk_is_suitable(const struct sock *sk)
+static bool sock_map_sk_is_udp(const struct sock *sk)
 {
-	return sk->sk_type == SOCK_STREAM &&
-	       sk->sk_protocol == IPPROTO_TCP;
+	return sk->sk_type == SOCK_DGRAM && sk->sk_protocol == IPPROTO_UDP;
 }
 
-static bool sock_map_sk_state_allowed(const struct sock *sk)
+static bool sock_map_sk_is_suitable(const struct sock *sk)
 {
-	return (1 << sk->sk_state) & (TCPF_ESTABLISHED | TCPF_LISTEN);
+	const int tcp_flags = TCPF_ESTABLISHED | TCPF_LISTEN | TCPF_SYN_RECV;
+
+	return (sock_map_sk_is_udp(sk) && sk_hashed(sk)) ||
+	       (sock_map_sk_is_tcp(sk) && (1 << sk->sk_state) & tcp_flags);
 }
 
 static int sock_map_update_elem(struct bpf_map *map, void *key,
@@ -504,13 +519,9 @@ static int sock_map_update_elem(struct bpf_map *map, void *key,
 		ret = -EINVAL;
 		goto out;
 	}
-	if (!sock_map_sk_is_suitable(sk)) {
-		ret = -EOPNOTSUPP;
-		goto out;
-	}
 
 	sock_map_sk_acquire(sk);
-	if (!sock_map_sk_state_allowed(sk))
+	if (!sock_map_sk_is_suitable(sk))
 		ret = -EOPNOTSUPP;
 	else
 		ret = sock_map_update_common(map, idx, sk, flags);
@@ -852,13 +863,9 @@ static int sock_hash_update_elem(struct bpf_map *map, void *key,
 		ret = -EINVAL;
 		goto out;
 	}
-	if (!sock_map_sk_is_suitable(sk)) {
-		ret = -EOPNOTSUPP;
-		goto out;
-	}
 
 	sock_map_sk_acquire(sk);
-	if (!sock_map_sk_state_allowed(sk))
+	if (!sock_map_sk_is_suitable(sk))
 		ret = -EOPNOTSUPP;
 	else
 		ret = sock_hash_update_common(map, key, sk, flags);

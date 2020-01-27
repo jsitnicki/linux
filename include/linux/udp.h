@@ -143,4 +143,8 @@ static inline bool udp_unexpected_gso(struct sock *sk, struct sk_buff *skb)
 
 #define IS_UDPLITE(__sk) (__sk->sk_protocol == IPPROTO_UDPLITE)
 
+#if defined(CONFIG_NET_SOCK_MSG)
+int udp_bpf_init(struct sock *sk);
+#endif
+
 #endif	/* _LINUX_UDP_H */
