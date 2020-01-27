@@ -840,3 +840,55 @@ void sk_psock_stop_strp(struct sock *sk, struct sk_psock *psock)
 	strp_stop(&parser->strp);
 	parser->enabled = false;
 }
+
+static inline int sk_psock_hooks_init_ipv6(struct sk_psock_hooks *hooks,
+					    struct proto *base)
+{
+	int ret = 0;
+
+	if (likely(base == smp_load_acquire(&hooks->base_ipv6)))
+		return 0;
+
+	spin_lock_bh(&hooks->ipv6_lock);
+	if (likely(base != hooks->base_ipv6)) {
+		ret = hooks->rebuild_proto(hooks->ipv6, base);
+		if (!ret)
+			smp_store_release(&hooks->base_ipv6, base);
+	}
+	spin_unlock_bh(&hooks->ipv6_lock);
+	return ret;
+}
+
+int sk_psock_hooks_install(struct sk_psock_hooks *hooks, struct sock *sk)
+{
+	struct sk_psock *psock = sk_psock(sk);
+	struct proto *prot_base;
+
+	WARN_ON_ONCE(!rcu_read_lock_held());
+
+	if (unlikely(!psock))
+		return -EINVAL;
+
+	/* Initialize saved callbacks and original proto only once.
+	 * Since we've not installed the hooks, psock is not yet in use and
+	 * we can initialize it without synchronization.
+	 */
+	if (!psock->sk_proto) {
+		struct proto *prot = READ_ONCE(sk->sk_prot);
+
+		if (sk->sk_family == AF_INET6 &&
+		    sk_psock_hooks_init_ipv6(hooks, prot))
+			return -EINVAL;
+
+		psock->saved_unhash = prot->unhash;
+		psock->saved_close = prot->close;
+		psock->saved_write_space = sk->sk_write_space;
+
+		psock->sk_proto = prot;
+	}
+
+	/* Pairs with lockless read in sk_clone_lock() */
+	prot_base = sk->sk_family == AF_INET ? hooks->ipv4 : hooks->ipv6;
+	WRITE_ONCE(sk->sk_prot, hooks->choose_proto(prot_base, psock));
+	return 0;
+}

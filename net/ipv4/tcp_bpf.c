@@ -529,24 +529,22 @@ out_err:
 }
 
 enum {
-	TCP_BPF_IPV4,
-	TCP_BPF_IPV6,
-	TCP_BPF_NUM_PROTS,
-};
-
-enum {
 	TCP_BPF_BASE,
 	TCP_BPF_TX,
 	TCP_BPF_NUM_CFGS,
 };
 
-static struct proto *tcpv6_prot_saved __read_mostly;
-static DEFINE_SPINLOCK(tcpv6_prot_lock);
-static struct proto tcp_bpf_prots[TCP_BPF_NUM_PROTS][TCP_BPF_NUM_CFGS];
-
-static void tcp_bpf_rebuild_protos(struct proto prot[TCP_BPF_NUM_CFGS],
-				   struct proto *base)
+static int tcp_bpf_rebuild_proto(struct proto prot[], struct proto *base)
 {
+	/* In order to avoid retpoline, we make assumptions when we call
+	 * into ops if e.g. a psock is not present. Make sure they are
+	 * indeed valid assumptions.
+	 */
+	if (base->recvmsg  != tcp_recvmsg ||
+	    base->sendmsg  != tcp_sendmsg ||
+	    base->sendpage != tcp_sendpage)
+		return -ENOTSUPP;
+
 	prot[TCP_BPF_BASE]			= *base;
 	prot[TCP_BPF_BASE].unhash		= sock_map_unhash;
 	prot[TCP_BPF_BASE].close		= sock_map_close;
@@ -556,91 +554,42 @@ static void tcp_bpf_rebuild_protos(struct proto prot[TCP_BPF_NUM_CFGS],
 	prot[TCP_BPF_TX]			= prot[TCP_BPF_BASE];
 	prot[TCP_BPF_TX].sendmsg		= tcp_bpf_sendmsg;
 	prot[TCP_BPF_TX].sendpage		= tcp_bpf_sendpage;
-}
-
-static void tcp_bpf_check_v6_needs_rebuild(struct sock *sk, struct proto *ops)
-{
-	if (sk->sk_family == AF_INET6 &&
-	    unlikely(ops != smp_load_acquire(&tcpv6_prot_saved))) {
-		spin_lock_bh(&tcpv6_prot_lock);
-		if (likely(ops != tcpv6_prot_saved)) {
-			tcp_bpf_rebuild_protos(tcp_bpf_prots[TCP_BPF_IPV6], ops);
-			smp_store_release(&tcpv6_prot_saved, ops);
-		}
-		spin_unlock_bh(&tcpv6_prot_lock);
-	}
-}
-
-static int __init tcp_bpf_v4_build_proto(void)
-{
-	tcp_bpf_rebuild_protos(tcp_bpf_prots[TCP_BPF_IPV4], &tcp_prot);
 	return 0;
 }
-core_initcall(tcp_bpf_v4_build_proto);
 
-static void tcp_bpf_update_sk_prot(struct sock *sk, struct sk_psock *psock)
+static struct proto *tcp_bpf_choose_proto(struct proto prot[],
+					  struct sk_psock *psock)
 {
-	int family = sk->sk_family == AF_INET6 ? TCP_BPF_IPV6 : TCP_BPF_IPV4;
-	int config = psock->progs.msg_parser   ? TCP_BPF_TX   : TCP_BPF_BASE;
+	int config = psock->progs.msg_parser ? TCP_BPF_TX : TCP_BPF_BASE;
 
-	sk_psock_update_proto(sk, psock, &tcp_bpf_prots[family][config]);
+	return &prot[config];
 }
 
-static void tcp_bpf_reinit_sk_prot(struct sock *sk, struct sk_psock *psock)
+static struct proto tcp_bpf_ipv4[TCP_BPF_NUM_CFGS];
+static struct proto tcp_bpf_ipv6[TCP_BPF_NUM_CFGS];
+static struct sk_psock_hooks tcp_bpf_hooks __read_mostly = {
+	.ipv4 = &tcp_bpf_ipv4[0],
+	.ipv6 = &tcp_bpf_ipv6[0],
+	.rebuild_proto = tcp_bpf_rebuild_proto,
+	.choose_proto = tcp_bpf_choose_proto,
+};
+
+static int __init tcp_bpf_init_psock_hooks(void)
 {
-	int family = sk->sk_family == AF_INET6 ? TCP_BPF_IPV6 : TCP_BPF_IPV4;
-	int config = psock->progs.msg_parser   ? TCP_BPF_TX   : TCP_BPF_BASE;
-
-	/* Reinit occurs when program types change e.g. TCP_BPF_TX is removed
-	 * or added requiring sk_prot hook updates. We keep original saved
-	 * hooks in this case.
-	 *
-	 * Pairs with lockless read in sk_clone_lock().
-	 */
-	WRITE_ONCE(sk->sk_prot, &tcp_bpf_prots[family][config]);
+	return sk_psock_hooks_init(&tcp_bpf_hooks, &tcp_prot);
 }
-
-static int tcp_bpf_assert_proto_ops(struct proto *ops)
-{
-	/* In order to avoid retpoline, we make assumptions when we call
-	 * into ops if e.g. a psock is not present. Make sure they are
-	 * indeed valid assumptions.
-	 */
-	return ops->recvmsg  == tcp_recvmsg &&
-	       ops->sendmsg  == tcp_sendmsg &&
-	       ops->sendpage == tcp_sendpage ? 0 : -ENOTSUPP;
-}
-
-void tcp_bpf_reinit(struct sock *sk)
-{
-	struct sk_psock *psock;
-
-	sock_owned_by_me(sk);
-
-	rcu_read_lock();
-	psock = sk_psock(sk);
-	tcp_bpf_reinit_sk_prot(sk, psock);
-	rcu_read_unlock();
-}
+core_initcall(tcp_bpf_init_psock_hooks);
 
 int tcp_bpf_init(struct sock *sk)
 {
-	struct proto *ops = READ_ONCE(sk->sk_prot);
-	struct sk_psock *psock;
+	int ret;
 
 	sock_owned_by_me(sk);
 
 	rcu_read_lock();
-	psock = sk_psock(sk);
-	if (unlikely(!psock || psock->sk_proto ||
-		     tcp_bpf_assert_proto_ops(ops))) {
-		rcu_read_unlock();
-		return -EINVAL;
-	}
-	tcp_bpf_check_v6_needs_rebuild(sk, ops);
-	tcp_bpf_update_sk_prot(sk, psock);
+	ret = sk_psock_hooks_install(&tcp_bpf_hooks, sk);
 	rcu_read_unlock();
-	return 0;
+	return ret;
 }
 
 /* If a child got cloned from a listening socket that had tcp_bpf
@@ -650,9 +599,10 @@ int tcp_bpf_init(struct sock *sk)
  */
 void tcp_bpf_clone(const struct sock *sk, struct sock *newsk)
 {
-	int family = sk->sk_family == AF_INET6 ? TCP_BPF_IPV6 : TCP_BPF_IPV4;
-	struct proto *prot = newsk->sk_prot;
+	struct proto *prot = READ_ONCE(sk->sk_prot);
 
-	if (prot == &tcp_bpf_prots[family][TCP_BPF_BASE])
+	/* TCP_LISTEN can only use TCP_BPF_BASE, so this is safe */
+	if (unlikely(prot == &tcp_bpf_ipv4[TCP_BPF_BASE] ||
+	             prot == &tcp_bpf_ipv6[TCP_BPF_BASE]))
 		newsk->sk_prot = sk->sk_prot_creator;
 }

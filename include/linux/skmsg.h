@@ -109,6 +109,16 @@ struct sk_psock {
 	};
 };
 
+struct sk_psock_hooks {
+	struct proto *base_ipv6;
+	struct proto *ipv4;
+	struct proto *ipv6;
+	spinlock_t ipv6_lock;
+	int (*rebuild_proto)(struct proto prot[], struct proto *base);
+	struct proto *(*choose_proto)(struct proto prot[],
+				      struct sk_psock *psock);
+};
+
 int sk_msg_alloc(struct sock *sk, struct sk_msg *msg, int len,
 		 int elem_first_coalesce);
 int sk_msg_clone(struct sock *sk, struct sk_msg *dst, struct sk_msg *src,
@@ -335,23 +345,14 @@ static inline void sk_psock_cork_free(struct sk_psock *psock)
 	}
 }
 
-static inline void sk_psock_update_proto(struct sock *sk,
-					 struct sk_psock *psock,
-					 struct proto *ops)
-{
-	psock->saved_unhash = sk->sk_prot->unhash;
-	psock->saved_close = sk->sk_prot->close;
-	psock->saved_write_space = sk->sk_write_space;
-
-	psock->sk_proto = sk->sk_prot;
-	/* Pairs with lockless read in sk_clone_lock() */
-	WRITE_ONCE(sk->sk_prot, ops);
-}
-
 static inline void sk_psock_restore_proto(struct sock *sk,
 					  struct sk_psock *psock)
 {
+	if (!psock->sk_proto)
+		return;
+
 	sk->sk_prot->unhash = psock->saved_unhash;
+
 	if (inet_sk(sk)->is_icsk) {
 		tcp_update_ulp(sk, psock->sk_proto, psock->saved_write_space);
 	} else {
@@ -423,5 +424,14 @@ static inline void psock_progs_drop(struct sk_psock_progs *progs)
 	psock_set_prog(&progs->skb_parser, NULL);
 	psock_set_prog(&progs->skb_verdict, NULL);
 }
+
+static inline int sk_psock_hooks_init(struct sk_psock_hooks *hooks,
+				       struct proto *ipv4_base)
+{
+	hooks->ipv6_lock = __SPIN_LOCK_UNLOCKED();
+	return hooks->rebuild_proto(hooks->ipv4, ipv4_base);
+}
+
+int sk_psock_hooks_install(struct sk_psock_hooks *hooks, struct sock *sk);
 
 #endif /* _LINUX_SKMSG_H */
