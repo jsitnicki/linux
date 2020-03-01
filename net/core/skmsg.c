@@ -539,6 +539,23 @@ int sk_psock_init_proto(struct sock *sk)
 	return 0;
 }
 
+/* Reinit occurs when program types change e.g. TCP_BPF_TX is removed
+ * or added requiring sk_prot hook updates. We keep original saved
+ * hooks in this case.
+ */
+void sk_psock_reinit_proto(struct sock *sk)
+{
+	struct sk_psock *psock;
+
+	sock_owned_by_me(sk);
+
+	rcu_read_lock();
+	psock = sk_psock(sk);
+	/* Pairs with lockless read in sk_clone_lock() */
+	WRITE_ONCE(sk->sk_prot, tcp_bpf_get_proto(sk, psock));
+	rcu_read_unlock();
+}
+
 struct sk_psock_link *sk_psock_link_pop(struct sk_psock *psock)
 {
 	struct sk_psock_link *link;

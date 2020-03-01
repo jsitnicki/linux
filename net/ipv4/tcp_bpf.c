@@ -598,23 +598,6 @@ int tcp_bpf_assert_proto_ops(struct proto *ops)
 	       ops->sendpage == tcp_sendpage ? 0 : -ENOTSUPP;
 }
 
-/* Reinit occurs when program types change e.g. TCP_BPF_TX is removed
- * or added requiring sk_prot hook updates. We keep original saved
- * hooks in this case.
- */
-void tcp_bpf_reinit(struct sock *sk)
-{
-	struct sk_psock *psock;
-
-	sock_owned_by_me(sk);
-
-	rcu_read_lock();
-	psock = sk_psock(sk);
-	/* Pairs with lockless read in sk_clone_lock() */
-	WRITE_ONCE(sk->sk_prot, tcp_bpf_get_proto(sk, psock));
-	rcu_read_unlock();
-}
-
 /* If a child got cloned from a listening socket that had tcp_bpf
  * protocol callbacks installed, we need to restore the callbacks to
  * the default ones because the child does not inherit the psock state

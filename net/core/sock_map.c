@@ -226,7 +226,7 @@ static int sock_map_link(struct bpf_map *map, struct sk_psock_progs *progs,
 		if (ret < 0)
 			goto out_drop;
 	} else {
-		tcp_bpf_reinit(sk);
+		sk_psock_reinit_proto(sk);
 	}
 
 	write_lock_bh(&sk->sk_callback_lock);
@@ -265,7 +265,7 @@ static int sock_map_link_no_progs(struct bpf_map *map, struct sock *sk)
 		return PTR_ERR(psock);
 
 	if (psock) {
-		tcp_bpf_reinit(sk);
+		sk_psock_reinit_proto(sk);
 		return 0;
 	}
 
