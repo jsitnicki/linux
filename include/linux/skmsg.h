@@ -430,6 +430,10 @@ int tcp_bpf_assert_proto_ops(struct proto *ops);
 void tcp_bpf_check_v6_needs_rebuild(struct sock *sk, struct proto *ops);
 struct proto *tcp_bpf_get_proto(struct sock *sk, struct sk_psock *psock);
 
+int udp_bpf_assert_proto_ops(struct proto *ops);
+void udp_bpf_check_v6_needs_rebuild(struct sock *sk, struct proto *ops);
+struct proto *udp_bpf_get_proto(struct sock *sk, struct sk_psock *psock);
+
 #define sk_psock_assert_proto_ops(sk, ops)		\
 	tcp_bpf_assert_proto_ops(ops)
 #define sk_psock_check_v6_needs_rebuild(sk, ops)	\
