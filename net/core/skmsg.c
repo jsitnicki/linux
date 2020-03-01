@@ -529,12 +529,12 @@ int sk_psock_init_proto(struct sock *sk)
 	rcu_read_lock();
 	psock = sk_psock(sk);
 	if (unlikely(!psock || psock->sk_proto ||
-		     tcp_bpf_assert_proto_ops(ops))) {
+		     sk_psock_assert_proto_ops(sk, ops))) {
 		rcu_read_unlock();
 		return -EINVAL;
 	}
-	tcp_bpf_check_v6_needs_rebuild(sk, ops);
-	sk_psock_update_proto(sk, psock, tcp_bpf_get_proto(sk, psock));
+	sk_psock_check_v6_needs_rebuild(sk, ops);
+	sk_psock_update_proto(sk, psock, sk_psock_get_proto(sk, psock));
 	rcu_read_unlock();
 	return 0;
 }
@@ -552,7 +552,7 @@ void sk_psock_reinit_proto(struct sock *sk)
 	rcu_read_lock();
 	psock = sk_psock(sk);
 	/* Pairs with lockless read in sk_clone_lock() */
-	WRITE_ONCE(sk->sk_prot, tcp_bpf_get_proto(sk, psock));
+	WRITE_ONCE(sk->sk_prot, sk_psock_get_proto(sk, psock));
 	rcu_read_unlock();
 }
 
