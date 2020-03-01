@@ -579,26 +579,29 @@ static int __init tcp_bpf_v4_build_proto(void)
 }
 core_initcall(tcp_bpf_v4_build_proto);
 
-static void tcp_bpf_update_sk_prot(struct sock *sk, struct sk_psock *psock)
+static inline struct proto *tcp_bpf_get_proto(struct sock *sk,
+					      struct sk_psock *psock)
 {
 	int family = sk->sk_family == AF_INET6 ? TCP_BPF_IPV6 : TCP_BPF_IPV4;
 	int config = psock->progs.msg_parser   ? TCP_BPF_TX   : TCP_BPF_BASE;
 
-	sk_psock_update_proto(sk, psock, &tcp_bpf_prots[family][config]);
+	return &tcp_bpf_prots[family][config];
+}
+
+static void tcp_bpf_update_sk_prot(struct sock *sk, struct sk_psock *psock)
+{
+	sk_psock_update_proto(sk, psock, tcp_bpf_get_proto(sk, psock));
 }
 
 static void tcp_bpf_reinit_sk_prot(struct sock *sk, struct sk_psock *psock)
 {
-	int family = sk->sk_family == AF_INET6 ? TCP_BPF_IPV6 : TCP_BPF_IPV4;
-	int config = psock->progs.msg_parser   ? TCP_BPF_TX   : TCP_BPF_BASE;
-
 	/* Reinit occurs when program types change e.g. TCP_BPF_TX is removed
 	 * or added requiring sk_prot hook updates. We keep original saved
 	 * hooks in this case.
 	 *
 	 * Pairs with lockless read in sk_clone_lock().
 	 */
-	WRITE_ONCE(sk->sk_prot, &tcp_bpf_prots[family][config]);
+	WRITE_ONCE(sk->sk_prot, tcp_bpf_get_proto(sk, psock));
 }
 
 static int tcp_bpf_assert_proto_ops(struct proto *ops)
