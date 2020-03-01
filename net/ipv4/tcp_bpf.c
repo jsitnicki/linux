@@ -588,11 +588,6 @@ static inline struct proto *tcp_bpf_get_proto(struct sock *sk,
 	return &tcp_bpf_prots[family][config];
 }
 
-static void tcp_bpf_update_sk_prot(struct sock *sk, struct sk_psock *psock)
-{
-	sk_psock_update_proto(sk, psock, tcp_bpf_get_proto(sk, psock));
-}
-
 static void tcp_bpf_reinit_sk_prot(struct sock *sk, struct sk_psock *psock)
 {
 	/* Reinit occurs when program types change e.g. TCP_BPF_TX is removed
@@ -642,7 +637,7 @@ int tcp_bpf_init(struct sock *sk)
 		return -EINVAL;
 	}
 	tcp_bpf_check_v6_needs_rebuild(sk, ops);
-	tcp_bpf_update_sk_prot(sk, psock);
+	sk_psock_update_proto(sk, psock, tcp_bpf_get_proto(sk, psock));
 	rcu_read_unlock();
 	return 0;
 }
