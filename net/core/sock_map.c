@@ -222,7 +222,7 @@ static int sock_map_link(struct bpf_map *map, struct sk_psock_progs *progs,
 	if (msg_parser)
 		psock_set_prog(&psock->progs.msg_parser, msg_parser);
 	if (sk_psock_is_new) {
-		ret = tcp_bpf_init(sk);
+		ret = sk_psock_init_proto(sk);
 		if (ret < 0)
 			goto out_drop;
 	} else {
@@ -273,7 +273,7 @@ static int sock_map_link_no_progs(struct bpf_map *map, struct sock *sk)
 	if (!psock)
 		return -ENOMEM;
 
-	ret = tcp_bpf_init(sk);
+	ret = sk_psock_init_proto(sk);
 	if (ret < 0)
 		sk_psock_put(sk, psock);
 	return ret;

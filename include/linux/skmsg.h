@@ -303,6 +303,7 @@ static inline void sk_psock_report_error(struct sk_psock *psock, int err)
 }
 
 struct sk_psock *sk_psock_init(struct sock *sk, int node);
+int sk_psock_init_proto(struct sock *sk);
 
 int sk_psock_init_strp(struct sock *sk, struct sk_psock *psock);
 void sk_psock_start_strp(struct sock *sk, struct sk_psock *psock);
@@ -423,5 +424,9 @@ static inline void psock_progs_drop(struct sk_psock_progs *progs)
 	psock_set_prog(&progs->skb_parser, NULL);
 	psock_set_prog(&progs->skb_verdict, NULL);
 }
+
+int tcp_bpf_assert_proto_ops(struct proto *ops);
+void tcp_bpf_check_v6_needs_rebuild(struct sock *sk, struct proto *ops);
+struct proto *tcp_bpf_get_proto(struct sock *sk, struct sk_psock *psock);
 
 #endif /* _LINUX_SKMSG_H */

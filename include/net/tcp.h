@@ -2196,7 +2196,6 @@ struct sk_msg;
 struct sk_psock;
 
 #ifdef CONFIG_BPF_STREAM_PARSER
-int tcp_bpf_init(struct sock *sk);
 void tcp_bpf_reinit(struct sock *sk);
 void tcp_bpf_clone(const struct sock *sk, struct sock *newsk);
 #else
