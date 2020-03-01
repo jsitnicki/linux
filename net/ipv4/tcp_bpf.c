@@ -587,17 +587,6 @@ struct proto *tcp_bpf_get_proto(struct sock *sk, struct sk_psock *psock)
 	return &tcp_bpf_prots[family][config];
 }
 
-static void tcp_bpf_reinit_sk_prot(struct sock *sk, struct sk_psock *psock)
-{
-	/* Reinit occurs when program types change e.g. TCP_BPF_TX is removed
-	 * or added requiring sk_prot hook updates. We keep original saved
-	 * hooks in this case.
-	 *
-	 * Pairs with lockless read in sk_clone_lock().
-	 */
-	WRITE_ONCE(sk->sk_prot, tcp_bpf_get_proto(sk, psock));
-}
-
 int tcp_bpf_assert_proto_ops(struct proto *ops)
 {
 	/* In order to avoid retpoline, we make assumptions when we call
@@ -609,6 +598,10 @@ int tcp_bpf_assert_proto_ops(struct proto *ops)
 	       ops->sendpage == tcp_sendpage ? 0 : -ENOTSUPP;
 }
 
+/* Reinit occurs when program types change e.g. TCP_BPF_TX is removed
+ * or added requiring sk_prot hook updates. We keep original saved
+ * hooks in this case.
+ */
 void tcp_bpf_reinit(struct sock *sk)
 {
 	struct sk_psock *psock;
@@ -617,7 +610,8 @@ void tcp_bpf_reinit(struct sock *sk)
 
 	rcu_read_lock();
 	psock = sk_psock(sk);
-	tcp_bpf_reinit_sk_prot(sk, psock);
+	/* Pairs with lockless read in sk_clone_lock() */
+	WRITE_ONCE(sk->sk_prot, tcp_bpf_get_proto(sk, psock));
 	rcu_read_unlock();
 }
 
