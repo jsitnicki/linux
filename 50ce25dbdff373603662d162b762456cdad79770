@@ -1,0 +1,2 @@
+v2: Switch back to non-blocking mode, but with polling and timeout.
+    Extend the fix to all I/O calls that we expect to block. (Andrii)
