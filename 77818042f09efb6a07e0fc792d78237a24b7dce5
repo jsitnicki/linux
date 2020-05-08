@@ -1,0 +1,3 @@
+v2:
+ - Change bpf_sk_assign proto to take PTR_TO_SOCKET (Martin)
+ - Reject non RCU-freed sockets in bpf_sk_assign (Martin)
