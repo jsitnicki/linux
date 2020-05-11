@@ -1,4 +1,8 @@
 v2:
 - Make bpf_sk_assign reject sockets that don't use RCU freeing. (Martin)
-- Change src_/dst_ field prefix in struct bpf_sk_lookup to remote_/local_,
+- Rename src_/dst_* fields in struct bpf_sk_lookup to remote_/local_,
   respectively. (Martin)
+- Change bpf_sk_assign helper proto to take PTR_TO_SOCKET as
+  argument. (Martin)
+- Allow sk_lookup programs to select only sockets that use RCU freeing.
+  Update bpf_sk_assign docs accordingly. (Martin)
