@@ -1,0 +1,2 @@
+v2:
+- Share code between pre_exit and prog_detach callbacks (Stanislav)
