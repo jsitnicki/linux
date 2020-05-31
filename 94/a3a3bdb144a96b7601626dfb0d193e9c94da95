@@ -1,0 +1,2 @@
+Stanislav, this patch has changed slightly so I didn't carry over your
+Reviewed-by tag. Notice, pernet pre_exit callback now grabs the mutex.
