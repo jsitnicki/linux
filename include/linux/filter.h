@@ -1297,4 +1297,43 @@ struct bpf_sk_lookup_kern {
 	bool		no_reuseport;
 };
 
+extern struct static_key_false bpf_sk_lookup_enabled;
+
+static inline bool bpf_sk_lookup_run_v4(struct net *net, int protocol,
+					const __be32 saddr, const __be16 sport,
+					const __be32 daddr, const u16 dport,
+					struct sock **psk)
+{
+	struct bpf_prog_array *run_array;
+	bool do_reuseport = false;
+	struct sock *sk = NULL;
+
+	rcu_read_lock();
+	run_array = rcu_dereference(net->bpf.run_array[NETNS_BPF_SK_LOOKUP]);
+	if (run_array) {
+		const struct bpf_sk_lookup_kern ctx = {
+			.family		= AF_INET,
+			.protocol	= protocol,
+			.v4.saddr	= saddr,
+			.v4.daddr	= daddr,
+			.sport		= sport,
+			.dport		= dport,
+		};
+		u32 ret;
+
+		ret = BPF_PROG_SK_LOOKUP_RUN_ARRAY(run_array, &ctx,
+						   BPF_PROG_RUN);
+		if (ret & (1U << BPF_REDIRECT)) {
+			sk = ctx.selected_sk;
+			do_reuseport = sk && !ctx.no_reuseport;
+		} else if (ret & (1U << BPF_DROP)) {
+			sk = ERR_PTR(-ECONNREFUSED);
+		}
+	}
+	rcu_read_unlock();
+
+	*psk = sk;
+	return do_reuseport;
+}
+
 #endif /* __LINUX_FILTER_H__ */

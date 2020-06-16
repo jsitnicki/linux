@@ -1013,6 +1013,35 @@ _out:							\
 		_ret;					\
 	})
 
+/* Runner for BPF_SK_LOOKUP programs to invoke on socket lookup.
+ *
+ * Valid return codes for SK_LOOKUP programs are:
+ * - BPF_REDIRECT (7) to use selected socket as result of the lookup,
+ * - BPF_DROP (1) to fail the socket lookup with no result,
+ * - BPF_OK (0) to continue on to regular htable-based socket lookup.
+ *
+ * Runner returns an u32 value that has a bit set for each code
+ * returned by any of the programs. Bit position corresponds to the
+ * return code.
+ *
+ * Caller must ensure that array is non-NULL.
+ */
+#define BPF_PROG_SK_LOOKUP_RUN_ARRAY(array, ctx, func)		\
+	({							\
+		struct bpf_prog_array_item *_item;		\
+		struct bpf_prog *_prog;				\
+		u32 _bit, _ret = 0;				\
+		migrate_disable();				\
+		_item = &(array)->items[0];			\
+		while ((_prog = READ_ONCE(_item->prog))) {	\
+			_bit = func(_prog, ctx);		\
+			_ret |= 1U << (_bit & 31);		\
+			_item++;				\
+		}						\
+		migrate_enable();				\
+		_ret;						\
+	 })
+
 #define BPF_PROG_RUN_ARRAY(array, ctx, func)		\
 	__BPF_PROG_RUN_ARRAY(array, ctx, func, false)
 
