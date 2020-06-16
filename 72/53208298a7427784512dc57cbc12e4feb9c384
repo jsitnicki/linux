@@ -1,0 +1,7 @@
+v2:
+- Make bpf_sk_assign reject sockets that don't use RCU freeing.
+  Update bpf_sk_assign docs accordingly. (Martin)
+- Change bpf_sk_assign proto to take PTR_TO_SOCKET as argument. (Martin)
+- Fix broken build when CONFIG_INET is not selected. (Martin)
+- Rename bpf_sk_lookup{} src_/dst_* fields remote_/local_*. (Martin)
+- Enforce BPF_SK_LOOKUP attach point on load & attach. (Martin)
