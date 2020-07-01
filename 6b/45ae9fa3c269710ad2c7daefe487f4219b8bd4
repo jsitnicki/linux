@@ -1,0 +1,3 @@
+v3:
+- Adapt for running an array of attached programs. (Alexei)
+- Adapt for optionally skipping reuseport selection. (Martin)
