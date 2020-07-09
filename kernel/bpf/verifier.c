@@ -9856,7 +9856,7 @@ static int convert_ctx_accesses(struct bpf_verifier_env *env)
 			return -EINVAL;
 		}
 
-		if (is_narrower_load && size < target_size) {
+		if (is_narrower_load || size < target_size) {
 			u8 shift = bpf_ctx_narrow_access_offset(
 				off, size, size_default) * 8;
 			if (ctx_field_size <= 4) {
