@@ -1,0 +1,11 @@
+v4:
+- Remove system("bpftool ...") call left over from debugging. (Lorenz)
+
+v3:
+- Extend tests to cover new functionality in v3:
+  - multi-prog attachments (query, running, verdict precedence)
+  - socket selecting for the second time with bpf_sk_assign
+  - skipping over reuseport load-balancing
+
+v2:
+ - Adjust for fields renames in struct bpf_sk_lookup.
