@@ -1,2 +1,7 @@
+v4:
+- Document bpf_prog_array_{delete_safe,update}_at() behavior. (Andrii)
+- Return a negative error on index out of range from link_index() and new
+  bpf_prog_array_{delete_safe,update}_at()
+
 v3:
 - New in v3 to support multi-prog attachments. (Alexei)
