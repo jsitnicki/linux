@@ -1,3 +1,11 @@
+v4:
+- Reintroduce narrow load support for most BPF context fields. (Yonghong)
+- Fix null-ptr-deref in BPF context access when IPv6 address not set.
+- Unpack v4/v6 IP address union in bpf_sk_lookup context type.
+- Add verifier support for ARG_PTR_TO_SOCKET_OR_NULL.
+- Allow resetting socket selection with bpf_sk_assign(ctx, NULL).
+- Document that bpf_sk_assign accepts a NULL socket.
+
 v3:
 - Allow bpf_sk_assign helper to replace previously selected socket only
   when BPF_SK_LOOKUP_F_REPLACE flag is set, as a precaution for multiple
