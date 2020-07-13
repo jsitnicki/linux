@@ -1,3 +1,6 @@
+v4:
+- Bring back tests for narrow loads.
+
 v3:
 - Consolidate ACCEPT tests into one.
 - Deduplicate REJECT tests and arrange them into logical groups.
