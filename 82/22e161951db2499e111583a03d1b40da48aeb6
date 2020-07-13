@@ -1,0 +1,7 @@
+v4:
+- Document prog_array {delete_safe,update}_at() behavior. (Andrii)
+- Return -EINVAL/-ENOENT on failure in {delete_safe,update}_at(). (Andrii)
+- Return -ENOENT on index out of range in link_index(). (Andrii)
+
+v3:
+- New in v3 to support multi-prog attachments. (Alexei)
