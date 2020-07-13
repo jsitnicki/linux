@@ -1,3 +1,6 @@
+v4:
+- Adapt to changes in BPF prog return codes.
+
 v3:
 - Use a static_key to minimize the hook overhead when not used. (Alexei)
 - Don't copy struct in6_addr when populating BPF prog context. (Martin)
