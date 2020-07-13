@@ -1,4 +1,5 @@
 v4:
+- Reduce BPF sk_lookup prog expected return values to SK_PASS/SK_DROP. (Lorenz)
 - Export bpf_sk_lookup_enabled symbol for CONFIG_IPV6=m (kernel test robot)
 
 v3:
