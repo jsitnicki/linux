@@ -1,0 +1,11 @@
+v4:
+- Bring back tests for narrow loads.
+
+v3:
+- Consolidate ACCEPT tests into one.
+- Deduplicate REJECT tests and arrange them into logical groups.
+- Add tests for out-of-bounds and unaligned access.
+- Cover access to newly introduced 'sk' field.
+
+v2:
+ - Adjust for fields renames in struct bpf_sk_lookup.
