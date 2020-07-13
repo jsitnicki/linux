@@ -1,0 +1,9 @@
+v4:
+- Add trailing slash to section prefix ("sk_lookup/"). (Andrii)
+
+v3:
+- Move new libbpf symbols to version 0.1.0.
+- Set expected_attach_type in probe_load for new prog type.
+
+v2:
+- Add new libbpf symbols to version 0.0.9. (Andrii)
