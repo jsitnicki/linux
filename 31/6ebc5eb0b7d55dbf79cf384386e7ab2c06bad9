@@ -1,5 +1,6 @@
 v4:
 - Remove system("bpftool ...") call left over from debugging. (Lorenz)
+- Dedup BPF code that selects a socket. (Lorenz)
 - Switch from CHECK_FAIL to CHECK macro. (Andrii)
 - Extract a network_helper that wraps inet_pton.
 - Don't restore netns now that test_progs does it.
