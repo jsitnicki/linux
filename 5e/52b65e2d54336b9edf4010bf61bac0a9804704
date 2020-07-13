@@ -1,5 +1,5 @@
 v4:
-- Adapt to change in bpf_sk_lookup_run_v4 return value semantics.
+- Adapt to change in bpf_sk_lookup_run_v6 return value semantics.
 
 v3:
 - Use a static_key to minimize the hook overhead when not used. (Alexei)
