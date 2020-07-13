@@ -3,6 +3,10 @@ v4:
 - Switch from CHECK_FAIL to CHECK macro. (Andrii)
 - Extract a network_helper that wraps inet_pton.
 - Don't restore netns now that test_progs does it.
+- Cover bpf_sk_assign(ctx, NULL) in tests.
+- Cover narrow loads in tests.
+- Cover NULL ctx->sk access attempts in tests.
+- Cover accessing IPv6 ctx fields on IPv4 lookup.
 
 v3:
 - Extend tests to cover new functionality in v3:
