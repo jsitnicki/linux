@@ -1,5 +1,6 @@
 v4:
 - Adapt to changes in BPF prog return codes.
+- Invert return value from bpf_sk_lookup_run_v6 to true on skip reuseport.
 
 v3:
 - Use a static_key to minimize the hook overhead when not used. (Alexei)
