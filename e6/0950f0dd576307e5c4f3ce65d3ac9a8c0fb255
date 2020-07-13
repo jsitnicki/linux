@@ -4,6 +4,7 @@ v4:
 - Rename netns_bpf_attach_type_enable/disable to _need/unneed. (Lorenz)
 - Export bpf_sk_lookup_enabled symbol for CONFIG_IPV6=m (kernel test robot)
 - Invert return value from bpf_sk_lookup_run_v4 to true on skip reuseport.
+- Move dedicated prog_array runner close to its callers in filter.h.
 
 v3:
 - Use a static_key to minimize the hook overhead when not used. (Alexei)
