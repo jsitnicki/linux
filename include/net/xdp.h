@@ -141,6 +141,8 @@ struct xdp_frame {
 	u32 flags; /* supported values defined in xdp_buff_flags */
 };
 
+static_assert(sizeof(struct xdp_frame) == _XDP_FRAME_SIZE);
+
 static __always_inline void *xdp_traits(const struct xdp_buff *xdp)
 {
 	return xdp->data_hard_start + sizeof(struct xdp_frame);

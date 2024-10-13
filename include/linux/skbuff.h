@@ -39,6 +39,7 @@
 #include <net/net_debug.h>
 #include <net/dropreason-core.h>
 #include <net/netmem.h>
+#include <net/trait.h>
 
 /**
  * DOC: skb checksums
@@ -273,6 +274,9 @@
 #define SKB_TRUESIZE(X) ((X) +						\
 			 SKB_DATA_ALIGN(sizeof(struct sk_buff)) +	\
 			 SKB_DATA_ALIGN(sizeof(struct skb_shared_info)))
+
+/* From xdp.h, to avoid indirectly including skbuff.h */
+#define _XDP_FRAME_SIZE (40)
 
 struct ahash_request;
 struct net_device;
@@ -2827,6 +2831,16 @@ static inline void *pskb_pull(struct sk_buff *skb, unsigned int len)
 
 void skb_condense(struct sk_buff *skb);
 
+static inline void *skb_traits(const struct sk_buff *skb)
+{
+	if (skb_shinfo(skb)->flags & SKBFL_HAS_TRAITS)
+		return skb->head;
+	if (skb_shinfo(skb)->flags & SKBFL_HAS_TRAITS_AFTER_XDP_FRAME)
+		return skb->head + _XDP_FRAME_SIZE;
+
+	return NULL;
+}
+
 /**
  *	skb_headroom - bytes at buffer head
  *	@skb: buffer to check
@@ -2835,7 +2849,12 @@ void skb_condense(struct sk_buff *skb);
  */
 static inline unsigned int skb_headroom(const struct sk_buff *skb)
 {
-	return skb->data - skb->head;
+	int trait_size = 0;
+	void *traits = skb_traits(skb);
+	if (traits)
+		trait_size = traits_size(traits);
+
+	return skb->data - skb->head - trait_size;
 }
 
 /**
