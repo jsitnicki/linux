@@ -520,6 +520,15 @@ enum {
 	 * use frags only up until ubuf_info is released
 	 */
 	SKBFL_MANAGED_FRAG_REFS = BIT(4),
+
+	/* a trait store is using part of the headroom, at the start.
+	 */
+	SKBFL_HAS_TRAITS = BIT(5),
+
+	/* a trait store is using part of the headroom, offset by
+	 * sizeof(struct xdp_frame) bytes.
+	 */
+	SKBFL_HAS_TRAITS_AFTER_XDP_FRAME = BIT(6),
 };
 
 #define SKBFL_ZEROCOPY_FRAG	(SKBFL_ZEROCOPY_ENABLE | SKBFL_SHARED_FRAG)

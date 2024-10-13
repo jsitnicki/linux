@@ -117,6 +117,12 @@ static __always_inline void xdp_buff_set_frag_pfmemalloc(struct xdp_buff *xdp)
 static bool xdp_data_meta_unsupported(const struct xdp_buff *xdp);
 static void xdp_set_data_meta_invalid(struct xdp_buff *xdp);
 
+static __always_inline void xdp_buff_update_skb(struct xdp_buff *xdp, struct sk_buff *skb)
+{
+	if (!xdp_data_meta_unsupported(xdp))
+		skb_shinfo(skb)->flags |= SKBFL_HAS_TRAITS_AFTER_XDP_FRAME;
+}
+
 // TODO - just moving this is horrible.
 // Maybe we should move all the helpers too?
 struct xdp_frame {
@@ -205,6 +211,12 @@ static __always_inline bool xdp_frame_has_frags(struct xdp_frame *frame)
 static __always_inline bool xdp_frame_is_frag_pfmemalloc(struct xdp_frame *frame)
 {
 	return !!(frame->flags & XDP_FLAGS_FRAGS_PF_MEMALLOC);
+}
+
+static __always_inline void xdp_frame_update_skb(struct xdp_frame *frame, struct sk_buff *skb)
+{
+	if (!frame->meta_unsupported)
+		skb_shinfo(skb)->flags |= SKBFL_HAS_TRAITS_AFTER_XDP_FRAME;
 }
 
 #define XDP_BULK_QUEUE_SIZE	16
