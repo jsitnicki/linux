@@ -104,8 +104,10 @@ tcp_timewait_state_process(struct inet_timewait_sock *tw, struct sk_buff *skb,
 	struct tcp_options_received tmp_opt;
 	bool paws_reject = false;
 	int ts_recent_stamp;
+	u8 tw_substate;
 
 	tmp_opt.saw_tstamp = 0;
+	tw_substate = READ_ONCE(tw->tw_substate);
 	ts_recent_stamp = READ_ONCE(tcptw->tw_ts_recent_stamp);
 	if (th->doff > (sizeof(*th) >> 2) && ts_recent_stamp) {
 		tcp_parse_options(twsk_net(tw), skb, &tmp_opt, 0, NULL);
@@ -114,12 +116,15 @@ tcp_timewait_state_process(struct inet_timewait_sock *tw, struct sk_buff *skb,
 			if (tmp_opt.rcv_tsecr)
 				tmp_opt.rcv_tsecr -= tcptw->tw_ts_offset;
 			tmp_opt.ts_recent	= READ_ONCE(tcptw->tw_ts_recent);
-			tmp_opt.ts_recent_stamp	= ts_recent_stamp;
+			if (tw_substate == TCP_TIME_WAIT)
+				tmp_opt.ts_recent_stamp = ts_recent_stamp / MSEC_PER_SEC;
+			else
+				tmp_opt.ts_recent_stamp	= ts_recent_stamp;
 			paws_reject = tcp_paws_reject(&tmp_opt, th->rst);
 		}
 	}
 
-	if (READ_ONCE(tw->tw_substate) == TCP_FIN_WAIT2) {
+	if (tw_substate == TCP_FIN_WAIT2) {
 		/* Just repeat all the checks of tcp_rcv_state_process() */
 
 		/* Out of window, send ACK */
@@ -158,7 +163,7 @@ tcp_timewait_state_process(struct inet_timewait_sock *tw, struct sk_buff *skb,
 
 		if (tmp_opt.saw_tstamp) {
 			WRITE_ONCE(tcptw->tw_ts_recent_stamp,
-				  ktime_get_seconds());
+				  tcp_clock_ms());
 			WRITE_ONCE(tcptw->tw_ts_recent,
 				   tmp_opt.rcv_tsval);
 		}
@@ -207,7 +212,7 @@ kill:
 			WRITE_ONCE(tcptw->tw_ts_recent,
 				   tmp_opt.rcv_tsval);
 			WRITE_ONCE(tcptw->tw_ts_recent_stamp,
-				   ktime_get_seconds());
+				   tcp_clock_ms());
 		}
 
 		inet_twsk_put(tw);
@@ -320,8 +325,11 @@ void tcp_time_wait(struct sock *sk, int state, int timeo)
 		tcptw->tw_snd_nxt	= tp->snd_nxt;
 		tcptw->tw_rcv_wnd	= tcp_receive_window(tp);
 		tcptw->tw_ts_recent	= tp->rx_opt.ts_recent;
-		tcptw->tw_ts_recent_stamp = tp->rx_opt.ts_recent_stamp;
-		tcptw->tw_ts_offset	= tp->tsoffset;
+		if (state == TCP_TIME_WAIT && tp->rx_opt.ts_recent_stamp)
+			tcptw->tw_ts_recent_stamp = tcp_time_stamp_ms(tp);
+		else
+			tcptw->tw_ts_recent_stamp = tp->rx_opt.ts_recent_stamp;
+		tcptw->tw_ts_offset = tp->tsoffset;
 		tw->tw_usec_ts		= tp->tcp_usec_ts;
 		tcptw->tw_last_oow_ack_time = 0;
 		tcptw->tw_tx_delay	= tp->tcp_tx_delay;

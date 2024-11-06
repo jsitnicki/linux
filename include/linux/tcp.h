@@ -542,7 +542,14 @@ struct tcp_timewait_sock {
 	/* The time we sent the last out-of-window ACK: */
 	u32			  tw_last_oow_ack_time;
 
-	int			  tw_ts_recent_stamp;
+	/**
+	 * @tw_ts_recent_stamp: Timestamp of last TS.Recent update (RFC 7323).
+	 *
+	 * Timestamp resolution depends on @tw_sk.tw_substate state. Has second
+	 * resolution in %TCP_FIN_WAIT2 state and millisecond resolution
+	 * %TCP_TIME_WAIT state.
+	 */
+	u32			  tw_ts_recent_stamp;
 	u32			  tw_tx_delay;
 #ifdef CONFIG_TCP_MD5SIG
 	struct tcp_md5sig_key	  *tw_md5_key;
