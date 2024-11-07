@@ -185,6 +185,7 @@ static_assert((1 << ATO_BITS) > TCP_DELACK_MAX);
 					 * timestamps. It must be less than
 					 * minimal timewait lifetime.
 					 */
+
 /*
  *	TCP option
  */
