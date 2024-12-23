@@ -1554,19 +1554,9 @@ struct sk_buff *tcp_recv_skb(struct sock *sk, u32 seq, u32 *off)
 }
 EXPORT_SYMBOL(tcp_recv_skb);
 
-/*
- * This routine provides an alternative to tcp_recvmsg() for routines
- * that would like to handle copying from skbuffs directly in 'sendfile'
- * fashion.
- * Note:
- *	- It is assumed that the socket was locked by the caller.
- *	- The routine does not block.
- *	- At present, there is no support for reading OOB data
- *	  or for 'peeking' the socket using this routine
- *	  (although both would be easy to implement).
- */
-int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
-		  sk_read_actor_t recv_actor)
+static inline int tcp_read_sock_copy_loop(struct sock *sk,
+					  read_descriptor_t *desc,
+					  sk_read_actor_t recv_actor)
 {
 	struct sk_buff *skb;
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -1628,11 +1618,34 @@ int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
 	}
 	WRITE_ONCE(tp->copied_seq, seq);
 
+	return copied;
+}
+
+/*
+ * This routine provides an alternative to tcp_recvmsg() for routines
+ * that would like to handle copying from skbuffs directly in 'sendfile'
+ * fashion.
+ * Note:
+ *	- It is assumed that the socket was locked by the caller.
+ *	- The routine does not block.
+ *	- At present, there is no support for reading OOB data
+ *	  or for 'peeking' the socket using this routine
+ *	  (although both would be easy to implement).
+ */
+int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
+		  sk_read_actor_t recv_actor)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+	int copied;
+	u32 offset;
+
+	copied = tcp_read_sock_copy_loop(sk, desc, recv_actor);
+
 	tcp_rcv_space_adjust(sk);
 
 	/* Clean up data we have read: This will do ACK frames. */
 	if (copied > 0) {
-		tcp_recv_skb(sk, seq, &offset);
+		tcp_recv_skb(sk, tp->copied_seq, &offset);
 		tcp_cleanup_rbuf(sk, copied);
 	}
 	return copied;
