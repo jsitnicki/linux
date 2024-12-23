@@ -577,80 +577,14 @@ out_err:
 	return copied > 0 ? copied : err;
 }
 
+#if IS_ENABLED(CONFIG_BPF_STREAM_PARSER)
 static void sock_replace_proto_ops(struct sock *sk,
 				   const struct proto_ops *proto_ops)
 {
 	if (sk->sk_socket)
 		WRITE_ONCE(sk->sk_socket->ops, proto_ops);
 }
-
-/* The tcp_bpf_read_sock() is an alternative implementation
- * of tcp_read_sock(), except that it does not update copied_seq.
- */
-static int tcp_bpf_read_sock(struct sock *sk, read_descriptor_t *desc,
-			     sk_read_actor_t recv_actor)
-{
-	struct sk_psock *psock;
-	struct sk_buff *skb;
-	int offset;
-	int copied = 0;
-
-	if (sk->sk_state == TCP_LISTEN)
-		return -ENOTCONN;
-
-	/* we are called from sk_psock_strp_data_ready() and
-	 * psock has already been checked and can't be NULL.
-	 */
-	psock = sk_psock_get(sk);
-	/* The offset keeps track of how much data was processed during
-	 * the last call.
-	 */
-	offset = psock->strp_offset;
-	while ((skb = skb_peek(&sk->sk_receive_queue)) != NULL) {
-		u8 tcp_flags;
-		int used;
-		size_t len;
-
-		len = skb->len - offset;
-		tcp_flags = TCP_SKB_CB(skb)->tcp_flags;
-		WARN_ON_ONCE(!skb_set_owner_sk_safe(skb, sk));
-		used = recv_actor(desc, skb, offset, len);
-		if (used <= 0) {
-			/* None of the data in skb has been consumed.
-			 * May -ENOMEM or other error happened
-			 */
-			if (!copied)
-				copied = used;
-			break;
-		}
-
-		if (WARN_ON_ONCE(used > len))
-			used = len;
-		copied += used;
-		if (used < len) {
-			/* Strparser clone and consume all input skb except
-			 * -ENOMEM happened and it will replay skb by it's
-			 * framework later. So We need to keep offset and
-			 * skb for next retry.
-			 */
-			offset += used;
-			break;
-		}
-
-		/* Entire skb was consumed, and we don't need this skb
-		 * anymore and clean the offset.
-		 */
-		offset = 0;
-		tcp_eat_recv_skb(sk, skb);
-		if (!desc->count)
-			break;
-		if (tcp_flags & TCPHDR_FIN)
-			break;
-	}
-
-	WRITE_ONCE(psock->strp_offset, offset);
-	return copied;
-}
+#endif
 
 enum {
 	TCP_BPF_IPV4,
@@ -693,12 +627,14 @@ static void tcp_bpf_rebuild_protos(struct proto prot[TCP_BPF_NUM_CFGS],
 	prot[TCP_BPF_TXRX].recvmsg		= tcp_bpf_recvmsg_parser;
 }
 
+#if IS_ENABLED(CONFIG_BPF_STREAM_PARSER)
 static void tcp_bpf_rebuild_proto_ops(struct proto_ops *ops,
 				      const struct proto_ops *base)
 {
 	*ops		= *base;
-	ops->read_sock	= tcp_bpf_read_sock;
+	ops->read_sock	= sk_psock_strp_read_sock;
 }
+#endif
 
 static void tcp_bpf_check_v6_needs_rebuild(struct proto *ops)
 {
@@ -712,6 +648,7 @@ static void tcp_bpf_check_v6_needs_rebuild(struct proto *ops)
 	}
 }
 
+#if IS_ENABLED(CONFIG_BPF_STREAM_PARSER)
 static int __init tcp_bpf_build_proto_ops(void)
 {
 	/* We update ops separately for further scalability
@@ -724,6 +661,7 @@ static int __init tcp_bpf_build_proto_ops(void)
 	return 0;
 }
 late_initcall(tcp_bpf_build_proto_ops);
+#endif
 
 static int __init tcp_bpf_v4_build_proto(void)
 {
@@ -746,7 +684,6 @@ int tcp_bpf_update_proto(struct sock *sk, struct sk_psock *psock, bool restore)
 {
 	int family = sk->sk_family == AF_INET6 ? TCP_BPF_IPV6 : TCP_BPF_IPV4;
 	int config = psock->progs.msg_parser   ? TCP_BPF_TX   : TCP_BPF_BASE;
-	bool strp = psock->progs.stream_verdict && psock->progs.stream_parser;
 
 	if (psock->progs.stream_verdict || psock->progs.skb_verdict) {
 		config = (config == TCP_BPF_TX) ? TCP_BPF_TXRX : TCP_BPF_RX;
@@ -780,8 +717,10 @@ int tcp_bpf_update_proto(struct sock *sk, struct sk_psock *psock, bool restore)
 	/* Pairs with lockless read in sk_clone_lock() */
 	sock_replace_proto(sk, &tcp_bpf_prots[family][config]);
 
-	if (strp)
+#if IS_ENABLED(CONFIG_BPF_STREAM_PARSER)
+	if (psock->progs.stream_verdict && psock->progs.stream_parser)
 		sock_replace_proto_ops(sk, &tcp_bpf_proto_ops[family]);
+#endif
 
 	return 0;
 }

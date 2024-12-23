@@ -1556,11 +1556,12 @@ EXPORT_SYMBOL(tcp_recv_skb);
 
 static inline int tcp_read_sock_copy_loop(struct sock *sk,
 					  read_descriptor_t *desc,
-					  sk_read_actor_t recv_actor)
+					  sk_read_actor_t recv_actor,
+					  u32 *copied_seq)
 {
 	struct sk_buff *skb;
 	struct tcp_sock *tp = tcp_sk(sk);
-	u32 seq = tp->copied_seq;
+	u32 seq = *copied_seq;
 	u32 offset;
 	int copied = 0;
 
@@ -1614,9 +1615,9 @@ static inline int tcp_read_sock_copy_loop(struct sock *sk,
 		tcp_eat_recv_skb(sk, skb);
 		if (!desc->count)
 			break;
-		WRITE_ONCE(tp->copied_seq, seq);
+		WRITE_ONCE(*copied_seq, seq);
 	}
-	WRITE_ONCE(tp->copied_seq, seq);
+	WRITE_ONCE(*copied_seq, seq);
 
 	return copied;
 }
@@ -1639,7 +1640,7 @@ int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
 	int copied;
 	u32 offset;
 
-	copied = tcp_read_sock_copy_loop(sk, desc, recv_actor);
+	copied = tcp_read_sock_copy_loop(sk, desc, recv_actor, &tp->copied_seq);
 
 	tcp_rcv_space_adjust(sk);
 
@@ -1651,6 +1652,13 @@ int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
 	return copied;
 }
 EXPORT_SYMBOL(tcp_read_sock);
+
+int tcp_read_sock_noack(struct sock *sk, read_descriptor_t *desc,
+			sk_read_actor_t recv_actor, u32 *copied_seq)
+{
+	return tcp_read_sock_copy_loop(sk, desc, recv_actor, copied_seq);
+}
+EXPORT_SYMBOL(tcp_read_sock_noack);
 
 int tcp_read_skb(struct sock *sk, skb_read_actor_t recv_actor)
 {

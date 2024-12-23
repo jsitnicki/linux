@@ -1133,6 +1133,15 @@ static void sk_psock_strp_data_ready(struct sock *sk)
 	rcu_read_unlock();
 }
 
+int sk_psock_strp_read_sock(struct sock *sk, read_descriptor_t *desc,
+			    sk_read_actor_t recv_actor)
+{
+	struct sk_psock *psock = sk_psock_get(sk);
+
+	return tcp_read_sock_noack(sk, desc, recv_actor,
+				   &psock->copied_seq);
+}
+
 int sk_psock_init_strp(struct sock *sk, struct sk_psock *psock)
 {
 	int ret;
@@ -1146,6 +1155,8 @@ int sk_psock_init_strp(struct sock *sk, struct sk_psock *psock)
 	ret = strp_init(&psock->strp, sk, &cb);
 	if (!ret)
 		sk_psock_set_state(psock, SK_PSOCK_RX_STRP_ENABLED);
+
+	psock->copied_seq = tcp_sk(sk)->copied_seq;
 
 	return ret;
 }
