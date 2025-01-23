@@ -114,13 +114,18 @@ static __always_inline void xdp_buff_set_frag_pfmemalloc(struct xdp_buff *xdp)
 	xdp->flags |= XDP_FLAGS_FRAGS_PF_MEMALLOC;
 }
 
+static bool xdp_data_meta_unsupported(const struct xdp_buff *xdp);
+static void xdp_set_data_meta_invalid(struct xdp_buff *xdp);
+
 // TODO - just moving this is horrible.
 // Maybe we should move all the helpers too?
 struct xdp_frame {
 	void *data;
 	u16 len;
 	u16 headroom;
-	u32 metasize; /* uses lower 8-bits */
+	u32	:23, /* unused */
+		meta_unsupported:1,
+		metasize:8;
 	/* Lifetime of xdp_rxq_info is limited to NAPI/enqueue time,
 	 * while mem info is valid on remote CPU.
 	 */
@@ -270,6 +275,8 @@ void xdp_convert_frame_to_buff(struct xdp_frame *frame, struct xdp_buff *xdp)
 	xdp->data = frame->data;
 	xdp->data_end = frame->data + frame->len;
 	xdp->data_meta = frame->data - frame->metasize;
+	if (frame->meta_unsupported)
+		xdp_set_data_meta_invalid(xdp);
 	xdp->frame_sz = frame->frame_sz;
 	xdp->flags = frame->flags;
 }
@@ -297,6 +304,7 @@ int xdp_update_frame_from_buff(struct xdp_buff *xdp,
 	xdp_frame->len  = xdp->data_end - xdp->data;
 	xdp_frame->headroom = headroom - sizeof(*xdp_frame);
 	xdp_frame->metasize = metasize;
+	xdp_frame->meta_unsupported = xdp_data_meta_unsupported(xdp);
 	xdp_frame->frame_sz = xdp->frame_sz;
 	xdp_frame->flags = xdp->flags;
 
