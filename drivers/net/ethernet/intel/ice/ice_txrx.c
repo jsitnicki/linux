@@ -990,6 +990,8 @@ ice_build_skb(struct ice_rx_ring *rx_ring, struct xdp_buff *xdp)
 					   nr_frags * xdp->frame_sz,
 					   xdp_buff_is_frag_pfmemalloc(xdp));
 
+	xdp_buff_update_skb(xdp, skb);
+
 	return skb;
 }
 
@@ -1070,6 +1072,8 @@ ice_construct_skb(struct ice_rx_ring *rx_ring, struct xdp_buff *xdp)
 					   nr_frags * xdp->frame_sz,
 					   xdp_buff_is_frag_pfmemalloc(xdp));
 	}
+
+	xdp_buff_update_skb(xdp, skb);
 
 	return skb;
 }
