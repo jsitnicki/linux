@@ -936,6 +936,7 @@ reqsk_alloc_noprof(const struct request_sock_ops *ops, struct sock *sk_listener,
 	sk_node_init(&req_to_sk(req)->sk_node);
 	sk_tx_queue_clear(req_to_sk(req));
 	req->saved_syn = NULL;
+	req->syn_traits = NULL;
 	req->syncookie = 0;
 	req->timeout = 0;
 	req->num_timeout = 0;
@@ -1025,6 +1026,7 @@ static void reqsk_queue_migrated(struct request_sock_queue *queue,
 static void reqsk_migrate_reset(struct request_sock *req)
 {
 	req->saved_syn = NULL;
+	req->syn_traits = NULL;
 #if IS_ENABLED(CONFIG_IPV6)
 	inet_rsk(req)->ipv6_opt = NULL;
 	inet_rsk(req)->pktopts = NULL;

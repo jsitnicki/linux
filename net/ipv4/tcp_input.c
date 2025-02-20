@@ -81,6 +81,7 @@
 #include <linux/jump_label_ratelimit.h>
 #include <net/busy_poll.h>
 #include <net/mptcp.h>
+#include <net/trait.h>
 
 int sysctl_tcp_max_orphans __read_mostly = NR_FILE;
 
@@ -7140,6 +7141,20 @@ static void tcp_reqsk_record_syn(const struct sock *sk,
 			saved_syn->tcp_hdrlen = tcp_hdrlen(skb);
 			memcpy(saved_syn->data, base, len);
 			req->saved_syn = saved_syn;
+		}
+	}
+	if (tcp_sk(sk)->save_syn_traits) {
+		const u8 *syn_traits = skb_traits(skb);
+		u8 *copy;
+		int len;
+
+		if (syn_traits) {
+			len = traits_size(syn_traits);
+			copy = kmalloc(len, GFP_ATOMIC);
+			if (copy) {
+				memcpy(copy, syn_traits, len);
+				req->syn_traits = copy;
+			}
 		}
 	}
 }

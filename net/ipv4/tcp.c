@@ -336,6 +336,16 @@ struct tcp_splice_state {
 unsigned long tcp_memory_pressure __read_mostly;
 EXPORT_SYMBOL_GPL(tcp_memory_pressure);
 
+/* TODO: Move out to an uapi header */
+struct pkt_trait {
+	u8 _zpad_1;    /* padding; must be zero; future use */
+	u8 key;	       /* trait identifier in 0..63 range */
+	u8 len;	       /* value length in bytes; zero if trait absent */
+	u8 io_err;     /* errno from read/write for this key; zero on success */
+	u32 _zpad_2;   /* padding; must be zero; future use */
+	u64 val;       /* trait value; unused bytes must be zero */
+};
+
 void tcp_enter_memory_pressure(struct sock *sk)
 {
 	unsigned long val;
@@ -3353,6 +3363,7 @@ int tcp_disconnect(struct sock *sk, int flags)
 	__sk_dst_reset(sk);
 	dst_release(unrcu_pointer(xchg(&sk->sk_rx_dst, NULL)));
 	tcp_saved_syn_free(tp);
+	tcp_syn_traits_free(tp);
 	tp->compressed_ack = 0;
 	tp->segs_in = 0;
 	tp->segs_out = 0;
@@ -3697,6 +3708,65 @@ int tcp_set_window_clamp(struct sock *sk, int val)
 	return 0;
 }
 
+/* FIXME: Arbitrary choice. We should have 48..68 bytes in TCP skb headroom
+ * without any encapulation or IPv6 extension headers. See MAX_TCP_HEADER.
+ */
+#define TCP_TRAITS_SIZE 32
+
+static int tcp_set_syn_traits(struct sock *sk,
+			      sockptr_t optval, unsigned int optlen)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+	struct pkt_trait t;
+	int ret, err;
+	bool failed;
+	size_t off;
+
+	if (optlen % sizeof(struct pkt_trait) != 0)
+		return -EINVAL;
+	if (sk->sk_state != TCP_CLOSE)
+		return -EOPNOTSUPP;
+
+	if (!tp->syn_traits) {
+		/* FIXME: Do we need GFP_ATOMIC? Can memory reclaim trigger
+		 * sock_lock()? Will we set SYN traits from BPF context?
+		 */
+		u8 *traits = kzalloc(TCP_TRAITS_SIZE, GFP_ATOMIC);
+
+		if (!traits)
+			return -ENOMEM;
+		tp->syn_traits = traits;
+	}
+
+	failed = false;
+	for (off = 0; off < optlen; off += sizeof(t)) {
+		if (copy_from_sockptr_offset(&t, optval, off, sizeof(t)))
+			return -EFAULT;
+
+		err = EINVAL;
+		if (t.io_err || t._zpad_1 || t._zpad_2)
+			goto next;
+
+		if (!t.len)
+			continue;
+
+		err = 0;
+		ret = trait_set(tp->syn_traits, tp->syn_traits + TCP_TRAITS_SIZE,
+				t.key, &t.val, t.len, 0);
+		if (ret < 0)
+			err = -ret;
+
+next:
+		t.io_err = err;
+		if (err)
+			failed = true;
+		if (copy_to_sockptr_offset(optval, off, &t, sizeof(t)))
+			return -EFAULT;
+	}
+
+	return failed ? -EIO : 0;
+}
+
 /*
  *	Socket option code for TCP.
  */
@@ -3905,6 +3975,17 @@ int do_tcp_setsockopt(struct sock *sk, int level, int optname,
 			err = -EINVAL;
 		else
 			tp->save_syn = val;
+		break;
+
+	case TCP_SAVE_SYN_TRAITS:
+		if (val < 0 || val > 1)
+			err = -EINVAL;
+		else
+			tp->save_syn_traits = val;
+		break;
+
+	case TCP_SYN_TRAITS:
+		err = tcp_set_syn_traits(sk, optval, optlen);
 		break;
 
 	case TCP_WINDOW_CLAMP:
@@ -4295,6 +4376,53 @@ struct sk_buff *tcp_get_timestamping_opt_stats(const struct sock *sk,
 	return stats;
 }
 
+static int tcp_get_syn_traits(const struct tcp_sock *tp,
+			      sockptr_t optval, sockptr_t optlen)
+{
+	struct pkt_trait t;
+	int len, ret, err;
+	bool failed;
+	size_t off;
+
+	if (!tp->syn_traits) {
+		len = 0;
+		if (copy_to_sockptr(optlen, &len, sizeof(int)))
+			return -EFAULT;
+		return 0; /* empty */
+	}
+
+	if (copy_from_sockptr(&len, optlen, sizeof(int)))
+		return -EFAULT;
+	if (len % sizeof(t))
+		return -EINVAL;
+
+	failed = false;
+	for (off = 0; off < len; off += sizeof(t)) {
+		if (copy_from_sockptr_offset(&t, optval, off, sizeof(t)))
+			return -EFAULT;
+
+		err = EINVAL;
+		if (t.len || t.io_err || t._zpad_1 || t._zpad_2)
+			goto next;
+
+		err = 0;
+		ret = trait_get(tp->syn_traits, t.key, &t.val, sizeof(t.val));
+		if (ret > 0)
+			t.len = ret;
+		if (ret < 0 && ret != -ENOENT)
+			err = -ret;
+
+next:
+		t.io_err = err;
+		if (err)
+			failed = true;
+		if (copy_to_sockptr_offset(optval, off, &t, sizeof(t)))
+			return -EFAULT;
+	}
+
+	return failed ? -EIO : 0;
+}
+
 int do_tcp_getsockopt(struct sock *sk, int level,
 		      int optname, sockptr_t optval, sockptr_t optlen)
 {
@@ -4552,6 +4680,18 @@ int do_tcp_getsockopt(struct sock *sk, int level,
 				return -EFAULT;
 		}
 		return 0;
+	}
+	case TCP_SAVE_SYN_TRAITS:
+		val = tp->save_syn_traits;
+		break;
+	case TCP_SYN_TRAITS: {
+		int err;
+
+		sockopt_lock_sock(sk);
+		err = tcp_get_syn_traits(tp, optval, optlen);
+		sockopt_release_sock(sk);
+
+		return err;
 	}
 #ifdef CONFIG_MMU
 	case TCP_ZEROCOPY_RECEIVE: {

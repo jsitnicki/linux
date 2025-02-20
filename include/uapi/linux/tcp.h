@@ -137,6 +137,9 @@ enum {
 
 #define TCP_IS_MPTCP		43	/* Is MPTCP being used? */
 
+#define TCP_SAVE_SYN_TRAITS	44	/* Record SYN SKB traits new connections */
+#define TCP_SYN_TRAITS		45	/* Get/set SKB traits recorded for connection */
+
 #define TCP_REPAIR_ON		1
 #define TCP_REPAIR_OFF		0
 #define TCP_REPAIR_OFF_NO_WP	-1	/* Turn off without window probes */

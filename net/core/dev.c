@@ -5036,11 +5036,20 @@ u32 bpf_prog_run_generic_xdp(struct sk_buff *skb, struct xdp_buff *xdp,
 static int
 netif_skb_check_for_xdp(struct sk_buff **pskb, struct bpf_prog *prog)
 {
+	u8 traits[XDP_PACKET_HEADROOM];
 	struct sk_buff *skb = *pskb;
+	bool copy_traits = false;
 	int err, hroom, troom;
 
 	if (!skb_cow_data_for_xdp(this_cpu_read(system_page_pool), pskb, prog))
 		return 0;
+
+	/* HACK for testing */
+	if (skb_shinfo(skb)->flags & SKBFL_HAS_TRAITS) {
+		memcpy(traits, skb->head, traits_size(skb->head));
+		skb_shinfo(skb)->flags &= ~SKBFL_HAS_TRAITS;
+		copy_traits = true;
+	}
 
 	/* In case we have to go down the path and also linearize,
 	 * then lets do the pskb_expand_head() work just once here.
@@ -5052,6 +5061,12 @@ netif_skb_check_for_xdp(struct sk_buff **pskb, struct bpf_prog *prog)
 			       troom > 0 ? troom + 128 : 0, GFP_ATOMIC);
 	if (err)
 		return err;
+
+	/* HACK for testing */
+	if (copy_traits) {
+		memcpy(skb->head + _XDP_FRAME_SIZE, traits, traits_size(traits));
+		skb_shinfo(skb)->flags |= SKBFL_HAS_TRAITS_AFTER_XDP_FRAME;
+	}
 
 	return skb_linearize(skb);
 }

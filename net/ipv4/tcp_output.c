@@ -4131,6 +4131,17 @@ int tcp_connect(struct sock *sk)
 	if (unlikely(!buff))
 		return -ENOBUFS;
 
+	/* FIXME: Duct tape. For testing only. */
+	if (tp->syn_traits) {
+		const int traits_len = traits_size(tp->syn_traits);
+
+		if (traits_len > skb_headroom(buff))
+			return -ENOSPC;
+
+		memcpy(buff->head, tp->syn_traits, traits_len);
+		skb_shinfo(buff)->flags |= SKBFL_HAS_TRAITS;
+	}
+
 	/* SYN eats a sequence byte, write_seq updated by
 	 * tcp_connect_queue_skb().
 	 */
