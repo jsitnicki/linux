@@ -74,6 +74,7 @@ struct request_sock {
 	const struct request_sock_ops	*rsk_ops;
 	struct sock			*sk;
 	struct saved_syn		*saved_syn;
+	u8				*syn_traits;
 	u32				secid;
 	u32				peer_secid;
 	u32				timeout;
@@ -134,6 +135,7 @@ static inline void __reqsk_free(struct request_sock *req)
 	if (req->rsk_listener)
 		sock_put(req->rsk_listener);
 	kfree(req->saved_syn);
+	kfree(req->syn_traits);
 	kmem_cache_free(req->rsk_ops->slab, req);
 }
 

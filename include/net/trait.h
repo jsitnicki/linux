@@ -45,7 +45,9 @@ static __always_inline bool __trait_valid_key(u64 key)
 
 static __always_inline int __trait_total_length(struct __trait_hdr h)
 {
-	return (hweight64(h.high) << 2) + (hweight64(h.low) << 1);
+	return (hweight64(h.low) << 1) + (hweight64(h.high) << 2)
+		// For size 8, we only get 4+2=6. Add another 2 in.
+		+ (hweight64(h.high & h.low) << 1);
 }
 
 static __always_inline struct __trait_hdr __trait_and(struct __trait_hdr h, u64 mask)
@@ -122,9 +124,10 @@ static __always_inline int traits_init(void *traits, void *hard_end)
  *
  * Return: Size in bytes.
  */
-static __always_inline int traits_size(void *traits)
+static __always_inline int traits_size(const void *traits)
 {
-	return sizeof(struct __trait_hdr) + __trait_total_length(*(struct __trait_hdr *)traits);
+	return sizeof(struct __trait_hdr) +
+	       __trait_total_length(*(const struct __trait_hdr *)traits);
 }
 
 /**

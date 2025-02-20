@@ -119,8 +119,12 @@ static void xdp_set_data_meta_invalid(struct xdp_buff *xdp);
 
 static __always_inline void xdp_buff_update_skb(struct xdp_buff *xdp, struct sk_buff *skb)
 {
-	if (!xdp_data_meta_unsupported(xdp))
-		skb_shinfo(skb)->flags |= SKBFL_HAS_TRAITS_AFTER_XDP_FRAME;
+	if (xdp_data_meta_unsupported(xdp))
+		return;
+	if (skb_shinfo(skb)->flags & SKBFL_HAS_TRAITS)
+		return;
+
+	skb_shinfo(skb)->flags |= SKBFL_HAS_TRAITS_AFTER_XDP_FRAME;
 }
 
 // TODO - just moving this is horrible.

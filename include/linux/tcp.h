@@ -380,7 +380,8 @@ struct tcp_sock {
 		syn_fastopen:1,	/* SYN includes Fast Open option */
 		syn_fastopen_exp:1,/* SYN includes Fast Open exp. option */
 		syn_fastopen_ch:1, /* Active TFO re-enabling probe */
-		syn_data_acked:1;/* data in SYN is acked by SYN-ACK */
+		syn_data_acked:1,/* data in SYN is acked by SYN-ACK */
+		save_syn_traits:1; /* Save SKB traits of SYN packet */
 
 	u8	keepalive_probes; /* num of allowed keep alive probes	*/
 	u32	tcp_tx_delay;	/* delay (in usec) added to TX packets */
@@ -500,6 +501,7 @@ struct tcp_sock {
 	 */
 	struct request_sock __rcu *fastopen_rsk;
 	struct saved_syn *saved_syn;
+	u8 *syn_traits;		/* SKB traits recorded from SYN */
 };
 
 enum tsq_enum {
@@ -576,6 +578,8 @@ static inline void tcp_move_syn(struct tcp_sock *tp,
 {
 	tp->saved_syn = req->saved_syn;
 	req->saved_syn = NULL;
+	tp->syn_traits = req->syn_traits;
+	req->syn_traits = NULL;
 }
 
 static inline void tcp_saved_syn_free(struct tcp_sock *tp)
@@ -588,6 +592,12 @@ static inline u32 tcp_saved_syn_len(const struct saved_syn *saved_syn)
 {
 	return saved_syn->mac_hdrlen + saved_syn->network_hdrlen +
 		saved_syn->tcp_hdrlen;
+}
+
+static inline void tcp_syn_traits_free(struct tcp_sock *tp)
+{
+	kfree(tp->syn_traits);
+	tp->syn_traits = NULL;
 }
 
 struct sk_buff *tcp_get_timestamping_opt_stats(const struct sock *sk,

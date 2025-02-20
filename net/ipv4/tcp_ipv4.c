@@ -2573,6 +2573,7 @@ void tcp_v4_destroy_sock(struct sock *sk)
 	tcp_free_fastopen_req(tp);
 	tcp_fastopen_destroy_cipher(sk);
 	tcp_saved_syn_free(tp);
+	tcp_syn_traits_free(tp);
 
 	sk_sockets_allocated_dec(sk);
 }
