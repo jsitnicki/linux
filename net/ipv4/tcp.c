@@ -343,7 +343,7 @@ struct pkt_trait {
 	u8 len;	       /* value length in bytes; zero if trait absent */
 	u8 io_err;     /* errno from read/write for this key; zero on success */
 	u32 _zpad_2;   /* padding; must be zero; future use */
-	u64 val;       /* trait value; unused bytes must be zero */
+	u64 val[2];    /* trait value; unused bytes must be zero */
 };
 
 void tcp_enter_memory_pressure(struct sock *sk)
@@ -3746,13 +3746,15 @@ static int tcp_set_syn_traits(struct sock *sk,
 		err = EINVAL;
 		if (t.io_err || t._zpad_1 || t._zpad_2)
 			goto next;
+		if (t.len > 8)
+			goto next; /* Not supported by traits store yet */
 
 		if (!t.len)
 			continue;
 
 		err = 0;
 		ret = trait_set(tp->syn_traits, tp->syn_traits + TCP_TRAITS_SIZE,
-				t.key, &t.val, t.len, 0);
+				t.key, &t.val[0], t.len, 0);
 		if (ret < 0)
 			err = -ret;
 
@@ -4406,7 +4408,7 @@ static int tcp_get_syn_traits(const struct tcp_sock *tp,
 			goto next;
 
 		err = 0;
-		ret = trait_get(tp->syn_traits, t.key, &t.val, sizeof(t.val));
+		ret = trait_get(tp->syn_traits, t.key, &t.val[0], sizeof(t.val));
 		if (ret > 0)
 			t.len = ret;
 		if (ret < 0 && ret != -ENOENT)
