@@ -1620,6 +1620,10 @@ set_sndbuf:
 		break;
 	}
 
+	case SO_RCV_PKT_TRAITS:
+		sock_valbool_flag(sk, SOCK_RCVTRAITS, valbool);
+		break;
+
 	default:
 		ret = -ENOPROTOOPT;
 		break;
@@ -2073,6 +2077,10 @@ int sk_getsockopt(struct sock *sk, int level, int optname,
 	case SO_TXREHASH:
 		/* Paired with WRITE_ONCE() in sk_setsockopt() */
 		v.val = READ_ONCE(sk->sk_txrehash);
+		break;
+
+	case SO_RCV_PKT_TRAITS:
+		v.val = sock_flag(sk, SOCK_RCVTRAITS);
 		break;
 
 	default:

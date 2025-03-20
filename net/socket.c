@@ -1008,12 +1008,23 @@ static void sock_recv_mark(struct msghdr *msg, struct sock *sk,
 	}
 }
 
+static void sock_recv_traits(struct msghdr *msg, struct sock *sk,
+			     struct sk_buff *skb)
+{
+	if (sock_flag(sk, SOCK_RCVTRAITS) && skb && skb_has_traits(skb)) {
+		void *traits = skb_traits(skb);
+
+		put_cmsg(msg, SOL_SOCKET, SO_PKT_TRAITS, traits_size(traits), traits);
+	}
+}
+
 void __sock_recv_cmsgs(struct msghdr *msg, struct sock *sk,
 		       struct sk_buff *skb)
 {
 	sock_recv_timestamp(msg, sk, skb);
 	sock_recv_drops(msg, sk, skb);
 	sock_recv_mark(msg, sk, skb);
+	sock_recv_traits(msg, sk, skb);
 }
 EXPORT_SYMBOL_GPL(__sock_recv_cmsgs);
 

@@ -2831,6 +2831,12 @@ static inline void *pskb_pull(struct sk_buff *skb, unsigned int len)
 
 void skb_condense(struct sk_buff *skb);
 
+static inline bool skb_has_traits(const struct sk_buff *skb)
+{
+	return skb_shinfo(skb)->flags &
+	       (SKBFL_HAS_TRAITS | SKBFL_HAS_TRAITS_AFTER_XDP_FRAME);
+}
+
 static inline void *skb_traits(const struct sk_buff *skb)
 {
 	if (skb_shinfo(skb)->flags & SKBFL_HAS_TRAITS)

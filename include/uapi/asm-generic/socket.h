@@ -143,6 +143,10 @@
 
 #define SCM_TS_OPT_ID		81
 
+#define SO_RCV_PKT_TRAITS	82
+#define SO_PKT_TRAITS		83
+#define SCM_PKT_TRAITS		SO_PKT_TRAITS
+
 #if !defined(__KERNEL__)
 
 #if __BITS_PER_LONG == 64 || (defined(__x86_64__) && defined(__ILP32__))
