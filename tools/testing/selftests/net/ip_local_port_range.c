@@ -9,6 +9,7 @@
 
 #include <fcntl.h>
 #include <netinet/ip.h>
+#include <arpa/inet.h>
 
 #include "../kselftest_harness.h"
 
@@ -19,6 +20,15 @@
 #ifndef IPPROTO_MPTCP
 #define IPPROTO_MPTCP 262
 #endif
+
+static const int ONE = 1;
+
+__attribute__((nonnull)) static inline void close_fd(int *fd)
+{
+	close(*fd);
+}
+
+#define __close_fd __attribute__((cleanup(close_fd)))
 
 static __u32 pack_port_range(__u16 lo, __u16 hi)
 {
@@ -114,6 +124,81 @@ static int get_ip_local_port_range(int fd, __u32 *range)
 
 	*range = val;
 	return 0;
+}
+
+struct sockaddr_inet {
+	union {
+		struct sockaddr_storage ss;
+		struct sockaddr_in6 v6;
+		struct sockaddr_in v4;
+		struct sockaddr sa;
+	};
+	socklen_t len;
+};
+
+static void make_inet_addr(int af, const char *ip, __u16 port,
+			   struct sockaddr_inet *addr)
+{
+	memset(addr, 0, sizeof(*addr));
+
+	switch (af) {
+	case AF_INET:
+		addr->len = sizeof(addr->v4);
+		addr->v4.sin_family = af;
+		addr->v4.sin_port = htons(port);
+		inet_pton(af, ip, &addr->v4.sin_addr);
+		break;
+	case AF_INET6:
+		addr->len = sizeof(addr->v6);
+		addr->v6.sin6_family = af;
+		addr->v6.sin6_port = htons(port);
+		inet_pton(af, ip, &addr->v6.sin6_addr);
+		break;
+	}
+}
+
+static bool is_v4mapped(const struct sockaddr_inet *a)
+{
+	return (a->sa.sa_family == AF_INET6 &&
+		IN6_IS_ADDR_V4MAPPED(&a->v6.sin6_addr));
+}
+
+static void v4mapped_to_ipv4(struct sockaddr_inet *a)
+{
+	in_port_t port = a->v6.sin6_port;
+	in_addr_t ip4 = *(in_addr_t *)&a->v6.sin6_addr.s6_addr[12];
+
+	memset(a, 0, sizeof(*a));
+	a->len = sizeof(a->v4);
+	a->v4.sin_family = AF_INET;
+	a->v4.sin_port = port;
+	a->v4.sin_addr.s_addr = ip4;
+}
+
+static void ipv4_to_v4mapped(struct sockaddr_inet *a)
+{
+	in_port_t port = a->v4.sin_port;
+	in_addr_t ip4 = a->v4.sin_addr.s_addr;
+
+	memset(a, 0, sizeof(*a));
+	a->len = sizeof(a->v6);
+	a->v6.sin6_family = AF_INET6;
+	a->v6.sin6_port = port;
+	a->v6.sin6_addr.s6_addr[10] = 0xff;
+	a->v6.sin6_addr.s6_addr[11] = 0xff;
+	memcpy(&a->v6.sin6_addr.s6_addr[12], &ip4, sizeof(ip4));
+}
+
+static __u16 inet_port(const struct sockaddr_inet *a)
+{
+	switch (a->sa.sa_family) {
+	case AF_INET:
+		return ntohs(a->v4.sin_port);
+	case AF_INET6:
+		return ntohs(a->v6.sin6_port);
+	default:
+		return 0;
+	}
 }
 
 FIXTURE(ip_local_port_range) {};
@@ -458,6 +543,262 @@ TEST_F(ip_local_port_range, get_port_range)
 
 	err = close(fd);
 	ASSERT_TRUE(!err) TH_LOG("close failed");
+}
+
+FIXTURE(tcp_port_reuse__no_ip_conflict) {};
+FIXTURE_SETUP(tcp_port_reuse__no_ip_conflict) {}
+FIXTURE_TEARDOWN(tcp_port_reuse__no_ip_conflict) {}
+
+FIXTURE_VARIANT(tcp_port_reuse__no_ip_conflict) {
+	int af_one;
+	const char *ip_one;
+	int af_two;
+	const char *ip_two;
+};
+
+FIXTURE_VARIANT_ADD(tcp_port_reuse__no_ip_conflict, ipv4) {
+	.af_one = AF_INET,
+	.ip_one = "127.0.0.1",
+	.af_two = AF_INET,
+	.ip_two = "127.0.0.2",
+};
+
+FIXTURE_VARIANT_ADD(tcp_port_reuse__no_ip_conflict, ipv6_v4mapped) {
+	.af_one = AF_INET6,
+	.ip_one = "::ffff:127.0.0.1",
+	.af_two = AF_INET,
+	.ip_two = "127.0.0.2",
+};
+
+FIXTURE_VARIANT_ADD(tcp_port_reuse__no_ip_conflict, ipv6) {
+	.af_one = AF_INET6,
+	.ip_one = "2001:db8::1",
+	.af_two = AF_INET6,
+	.ip_two = "2001:db8::2",
+};
+
+/* Check that a connected socket, which is using IP_LOCAL_PORT_RANGE to relax
+ * port search restrictions at connect() time, can share a local port with a
+ * listening socket bound to a different IP.
+ */
+TEST_F(tcp_port_reuse__no_ip_conflict, share_port_with_listening_socket)
+{
+	const typeof(variant) v = variant;
+	struct sockaddr_inet addr;
+	__close_fd int ln = -1;
+	__close_fd int c = -1;
+	__close_fd int p = -1;
+	__u32 range;
+	int r;
+
+	/* Listen on <ip one>:40000 */
+	ln = socket(v->af_one, SOCK_STREAM, 0);
+	ASSERT_GE(ln, 0) TH_LOG("socket");
+
+	r = setsockopt(ln, SOL_SOCKET, SO_REUSEADDR, &ONE, sizeof(ONE));
+	ASSERT_EQ(r, 0) TH_LOG("setsockopt(SO_REUSEADDR)");
+
+	make_inet_addr(v->af_one, v->ip_one, 40000, &addr);
+	r = bind(ln, &addr.sa, addr.len);
+	ASSERT_EQ(r, 0) TH_LOG("bind(<ip_one>:40000)");
+
+	r = listen(ln, 1);
+	ASSERT_EQ(r, 0) TH_LOG("listen");
+
+	/* Connect from <ip two>:40000 to <ip one>:40000 */
+	c = socket(v->af_two, SOCK_STREAM, 0);
+	ASSERT_GE(c, 0) TH_LOG("socket");
+
+	r = setsockopt(c, SOL_IP, IP_BIND_ADDRESS_NO_PORT, &ONE, sizeof(ONE));
+	ASSERT_EQ(r, 0) TH_LOG("setsockopt(IP_BIND_ADDRESS_NO_PORT)");
+
+	range = pack_port_range(40000, 40000);
+	r = setsockopt(c, SOL_IP, IP_LOCAL_PORT_RANGE, &range, sizeof(range));
+	ASSERT_EQ(r, 0) TH_LOG("setsockopt(IP_LOCAL_PORT_RANGE)");
+
+	make_inet_addr(v->af_two, v->ip_two, 0, &addr);
+	r = bind(c, &addr.sa, addr.len);
+	ASSERT_EQ(r, 0) TH_LOG("bind(<ip_two>:0)");
+
+	make_inet_addr(v->af_one, v->ip_one, 40000, &addr);
+	if (is_v4mapped(&addr))
+		v4mapped_to_ipv4(&addr);
+	r = connect(c, &addr.sa, addr.len);
+	EXPECT_EQ(r, 0) TH_LOG("connect(<ip_one>:40000)");
+	EXPECT_EQ(get_sock_port(c), 40000);
+}
+
+/* Check that a connected socket, which is using IP_LOCAL_PORT_RANGE to relax
+ * port search restrictions at connect() time, can share a local port with
+ * another connected socket bound to a different IP without
+ * IP_BIND_ADDRESS_NO_PORT enabled.
+ */
+TEST_F(tcp_port_reuse__no_ip_conflict, share_port_with_connected_socket)
+{
+	const typeof(variant) v = variant;
+	struct sockaddr_inet dst = {};
+	struct sockaddr_inet src = {};
+	__close_fd int ln = -1;
+	__close_fd int c1 = -1;
+	__close_fd int c2 = -1;
+	__u32 range;
+	__u16 port;
+	int r;
+
+	/* Listen on wildcard. Same family as <ip_two>. */
+	ln = socket(v->af_two, SOCK_STREAM, 0);
+	ASSERT_GE(ln, 0) TH_LOG("socket");
+
+	r = setsockopt(ln, SOL_SOCKET, SO_REUSEADDR, &ONE, sizeof(ONE));
+	ASSERT_EQ(r, 0) TH_LOG("setsockopt(SO_REUSEADDR");
+
+	r = listen(ln, 2);
+	ASSERT_EQ(r, 0) TH_LOG("listen");
+
+	dst.len = sizeof(dst.ss);
+	r = getsockname(ln, &dst.sa, &dst.len);
+	ASSERT_EQ(r, 0) TH_LOG("getsockname");
+
+	/* Connect from <ip one> but without IP_BIND_ADDRESS_NO_PORT */
+	c1 = socket(v->af_one, SOCK_STREAM, 0);
+	ASSERT_GE(c1, 0) TH_LOG("socket");
+
+	make_inet_addr(v->af_one, v->ip_one, 0, &src);
+	r = bind(c1, &src.sa, src.len);
+	ASSERT_EQ(r, 0) TH_LOG("bind");
+
+	if (src.sa.sa_family == AF_INET6 && dst.sa.sa_family == AF_INET)
+		ipv4_to_v4mapped(&dst);
+	r = connect(c1, &dst.sa, dst.len);
+	ASSERT_EQ(r, 0) TH_LOG("connect");
+
+	src.len = sizeof(src.ss);
+	r = getsockname(c1, &src.sa, &src.len);
+	ASSERT_EQ(r, 0) TH_LOG("getsockname");
+
+	/* Connect from <ip two>:<c1 port> with IP_BIND_ADDRESS_NO_PORT */
+	c2 = socket(v->af_two, SOCK_STREAM, 0);
+	ASSERT_GE(c2, 0) TH_LOG("socket");
+
+	r = setsockopt(c2, SOL_IP, IP_BIND_ADDRESS_NO_PORT, &ONE, sizeof(ONE));
+	ASSERT_EQ(r, 0) TH_LOG("setsockopt(IP_BIND_ADDRESS_NO_PORT)");
+
+	port = inet_port(&src);
+	range = pack_port_range(port, port);
+	r = setsockopt(c2, SOL_IP, IP_LOCAL_PORT_RANGE, &range, sizeof(range));
+	ASSERT_EQ(r, 0) TH_LOG("setsockopt(IP_LOCAL_PORT_RANGE)");
+
+	make_inet_addr(v->af_two, v->ip_two, 0, &src);
+	r = bind(c2, &src.sa, src.len);
+	ASSERT_EQ(r, 0) TH_LOG("bind");
+
+	if (is_v4mapped(&dst))
+		v4mapped_to_ipv4(&dst);
+	r = connect(c2, &dst.sa, dst.len);
+	EXPECT_EQ(r, 0) TH_LOG("connect");
+	EXPECT_EQ(get_sock_port(c2), port);
+}
+
+FIXTURE(tcp_port_reuse__ip_conflict) {};
+FIXTURE_SETUP(tcp_port_reuse__ip_conflict) {}
+FIXTURE_TEARDOWN(tcp_port_reuse__ip_conflict) {}
+
+FIXTURE_VARIANT(tcp_port_reuse__ip_conflict) {
+	int af_one;
+	const char *ip_one;
+	int af_two;
+	const char *ip_two;
+};
+
+FIXTURE_VARIANT_ADD(tcp_port_reuse__ip_conflict, ipv4) {
+	.af_one = AF_INET,
+	.ip_one = "127.0.0.1",
+	.af_two = AF_INET,
+	.ip_two = "127.0.0.1",
+};
+
+FIXTURE_VARIANT_ADD(tcp_port_reuse__ip_conflict, ipv6_v4mapped) {
+	.af_one = AF_INET6,
+	.ip_one = "::ffff:127.0.0.1",
+	.af_two = AF_INET,
+	.ip_two = "127.0.0.1",
+};
+
+FIXTURE_VARIANT_ADD(tcp_port_reuse__ip_conflict, ipv6) {
+	.af_one = AF_INET6,
+	.ip_one = "2001:db8::1",
+	.af_two = AF_INET6,
+	.ip_two = "2001:db8::1",
+};
+
+FIXTURE_VARIANT_ADD(tcp_port_reuse__ip_conflict, ipv4_wildcard) {
+	.af_one = AF_INET,
+	.ip_one = "0.0.0.0",
+	.af_two = AF_INET,
+	.ip_two = "127.0.0.1",
+};
+
+FIXTURE_VARIANT_ADD(tcp_port_reuse__ip_conflict, ipv6_v4mapped_wildcard) {
+	.af_one = AF_INET6,
+	.ip_one = "::ffff:0.0.0.0",
+	.af_two = AF_INET,
+	.ip_two = "127.0.0.1",
+};
+
+FIXTURE_VARIANT_ADD(tcp_port_reuse__ip_conflict, ipv6_wildcard) {
+	.af_one = AF_INET6,
+	.ip_one = "::",
+	.af_two = AF_INET6,
+	.ip_two = "2001:db8::1",
+};
+
+/* Check that a socket, which using IP_LOCAL_PORT_RANGE to relax local port
+ * search restrictions at connect() time, can't share a local port with a
+ * listening socket when there is IP address conflict.
+ */
+TEST_F(tcp_port_reuse__ip_conflict, cannot_share_port)
+{
+	const typeof(variant) v = variant;
+	struct sockaddr_inet dst, src;
+	__close_fd int ln = -1;
+	__close_fd int c = -1;
+	__u32 range;
+	int r;
+
+	/* Listen on <ip_one>:40000 */
+	ln = socket(v->af_one, SOCK_STREAM, 0);
+	ASSERT_GE(ln, 0) TH_LOG("socket");
+
+	r = setsockopt(ln, SOL_SOCKET, SO_REUSEADDR, &ONE, sizeof(ONE));
+	ASSERT_EQ(r, 0) TH_LOG("setsockopt(SO_REUSEADDR)");
+
+	make_inet_addr(v->af_one, v->ip_one, 40000, &dst);
+	r = bind(ln, &dst.sa, dst.len);
+	ASSERT_EQ(r, 0) TH_LOG("bind(<ip_one>:40000)");
+
+	r = listen(ln, 1);
+	ASSERT_EQ(r, 0) TH_LOG("listen");
+
+	/* Attempt to connect from <ip two>:40000 */
+	c = socket(v->af_two, SOCK_STREAM, 0);
+	ASSERT_GE(c, 0) TH_LOG("socket");
+
+	r = setsockopt(c, SOL_IP, IP_BIND_ADDRESS_NO_PORT, &ONE, sizeof(ONE));
+	ASSERT_EQ(r, 0) TH_LOG("setsockopt(IP_BIND_ADDRESS_NO_PORT)");
+
+	range = pack_port_range(40000, 40000);
+	r = setsockopt(c, SOL_IP, IP_LOCAL_PORT_RANGE, &range, sizeof(range));
+	ASSERT_EQ(r, 0) TH_LOG("setsockopt(IP_LOCAL_PORT_RANGE)");
+
+	make_inet_addr(v->af_two, v->ip_two, 0, &src);
+	r = bind(c, &src.sa, src.len);
+	ASSERT_EQ(r, 0) TH_LOG("bind(<ip_two>:40000)");
+
+	if (is_v4mapped(&dst))
+		v4mapped_to_ipv4(&dst);
+	r = connect(c, &dst.sa, dst.len);
+	EXPECT_EQ(r, -1) TH_LOG("connect(*:40000)");
+	EXPECT_EQ(errno, EADDRNOTAVAIL);
 }
 
 TEST_HARNESS_MAIN
