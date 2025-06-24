@@ -1005,6 +1005,21 @@ EXPORT_IPV6_MOD(inet_bhash2_reset_saddr);
 #define INET_TABLE_PERTURB_SIZE (1 << CONFIG_INET_TABLE_PERTURB_ORDER)
 static u32 *table_perturb;
 
+/* True if there is a conflict with another bound socket. False otherwise. */
+static inline bool check_bound(const struct sock *sk,
+			       const struct inet_bind_bucket *tb)
+{
+	struct inet_bind2_bucket *tb2;
+	struct sock *sk2;
+
+	sk_for_each_bound_bhash(sk2, tb2, tb) {
+		if (inet_rcv_saddr_equal(sk, sk2, true))
+			return true;
+	}
+
+	return false;
+}
+
 int __inet_hash_connect(struct inet_timewait_death_row *death_row,
 		struct sock *sk, u64 port_offset,
 		u32 hash_port0,
@@ -1069,9 +1084,11 @@ other_parity_scan:
 		hlist_for_each_entry_rcu(tb, &head->chain, node) {
 			if (!inet_bind_bucket_match(tb, net, port, l3mdev))
 				continue;
-			if (tb->fastreuse >= 0 || tb->fastreuseport >= 0) {
-				rcu_read_unlock();
-				goto next_port;
+			if (likely(!local_ports)) {
+				if (tb->fastreuse >= 0 || tb->fastreuseport >= 0) {
+					rcu_read_unlock();
+					goto next_port;
+				}
 			}
 			if (!check_established(death_row, sk, port, &tw, true,
 					       hash_port0 + port))
@@ -1083,14 +1100,15 @@ other_parity_scan:
 
 		spin_lock_bh(&head->lock);
 
-		/* Does not bother with rcv_saddr checks, because
-		 * the established check is already unique enough.
-		 */
 		inet_bind_bucket_for_each(tb, &head->chain) {
 			if (inet_bind_bucket_match(tb, net, port, l3mdev)) {
-				if (tb->fastreuse >= 0 ||
-				    tb->fastreuseport >= 0)
-					goto next_port_unlock;
+				if (likely(!local_ports)) {
+					if (tb->fastreuse >= 0 || tb->fastreuseport >= 0)
+						goto next_port_unlock;
+				} else {
+					if (check_bound(sk, tb))
+						goto next_port_unlock;
+				}
 				WARN_ON(hlist_empty(&tb->bhash2));
 				if (!check_established(death_row, sk,
 						       port, &tw, false,

@@ -921,6 +921,9 @@ static inline void sk_add_bind_node(struct sock *sk,
 	hlist_for_each_entry(__sk, list, sk_bind_node)
 #define sk_for_each_bound_safe(__sk, tmp, list) \
 	hlist_for_each_entry_safe(__sk, tmp, list, sk_bind_node)
+#define sk_for_each_bound_bhash(__sk, __tb2, __tb)			\
+	hlist_for_each_entry(__tb2, &(__tb)->bhash2, bhash_node)	\
+		sk_for_each_bound((__sk), &(__tb2)->owners)
 
 /**
  * sk_for_each_entry_offset_rcu - iterate over a list at a given struct offset
