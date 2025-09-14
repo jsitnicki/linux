@@ -3280,6 +3280,7 @@ static int bpf_skb_generic_pop(struct sk_buff *skb, u32 off, u32 len)
 	__skb_pull(skb, len);
 	skb_postpull_rcsum(skb, old_data + off, len);
 	memmove(skb->data, old_data, off);
+	skb_metadata_postpull_move(skb, len);
 
 	return 0;
 }
