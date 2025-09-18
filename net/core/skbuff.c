@@ -6309,6 +6309,7 @@ int __skb_vlan_pop(struct sk_buff *skb, u16 *vlan_tci)
 
 	vlan_remove_tag(skb, vlan_tci);
 
+	skb_metadata_postpull_move(skb, VLAN_HLEN);
 	skb->mac_header += VLAN_HLEN;
 
 	if (skb_network_offset(skb) < ETH_HLEN)
