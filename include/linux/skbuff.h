@@ -4512,6 +4512,30 @@ static inline void skb_metadata_clear(struct sk_buff *skb)
 	skb_metadata_set(skb, 0);
 }
 
+/**
+ * skb_metadata_postpull_move - Move metadata after an skb_pull()
+ * @skb: packet which head contains the metadata
+ * @len: how many bytes were pulled
+ *
+ * TODO
+ */
+static inline void skb_metadata_postpull_move(struct sk_buff *skb, unsigned int len)
+{
+	const u8 meta_len = skb_metadata_len(skb);
+	u8 *meta_end = skb_metadata_end(skb);
+	u8 *meta = meta_end - meta_len;
+
+	if (!len || !meta_len)
+		return;
+
+	if (WARN_ON_ONCE(meta_end + len > skb->data)) {
+		skb_metadata_clear(skb);
+		return;
+	}
+
+	memmove(meta + len, meta, meta_len);
+}
+
 struct sk_buff *skb_clone_sk(struct sk_buff *skb);
 
 #ifdef CONFIG_NETWORK_PHY_TIMESTAMPING
