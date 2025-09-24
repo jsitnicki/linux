@@ -4512,28 +4512,48 @@ static inline void skb_metadata_clear(struct sk_buff *skb)
 	skb_metadata_set(skb, 0);
 }
 
-/**
- * skb_metadata_postpull_move - Move metadata after an skb_pull()
- * @skb: packet which head contains the metadata
- * @len: how many bytes were pulled
- *
- * TODO
- */
-static inline void skb_metadata_postpull_move(struct sk_buff *skb, unsigned int len)
+static inline void skb_metadata_move(struct sk_buff *skb, int offset)
 {
 	const u8 meta_len = skb_metadata_len(skb);
 	u8 *meta_end = skb_metadata_end(skb);
 	u8 *meta = meta_end - meta_len;
 
-	if (!len || !meta_len)
+	if (!offset || !meta_len)
 		return;
 
-	if (WARN_ON_ONCE(meta_end + len > skb->data)) {
+	if (WARN_ON_ONCE(meta + offset < skb->head ||
+			 meta_end + offset > skb->data)) {
 		skb_metadata_clear(skb);
 		return;
 	}
 
-	memmove(meta + len, meta, meta_len);
+	memmove(meta + offset, meta, meta_len);
+}
+
+/**
+ * skb_metadata_postpull_move - Move metadata after an skb_pull()
+ * @skb: packet which head contains the metadata
+ * @len: how many bytes were removed
+ *
+ * TODO
+ */
+static inline void skb_metadata_postpull_move(struct sk_buff *skb, unsigned int len)
+{
+	DEBUG_NET_WARN_ON_ONCE(len > INT_MAX);
+	skb_metadata_move(skb, len);
+}
+
+/**
+ * skb_metadata_postpush_move - Move metadata after an skb_push()
+ * @skb: packet which head contains the metadata
+ * @len: how many bytes were added
+ *
+ * TODO
+ */
+static inline void skb_metadata_postpush_move(struct sk_buff *skb, unsigned int len)
+{
+	DEBUG_NET_WARN_ON_ONCE(len > INT_MAX);
+	skb_metadata_move(skb, -len);
 }
 
 struct sk_buff *skb_clone_sk(struct sk_buff *skb);
