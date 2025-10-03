@@ -4591,6 +4591,7 @@ static inline void skb_data_move(struct sk_buff *skb, const int len,
 
 	/* Not enough headroom left for metadata. Drop it. */
 	if (WARN_ON_ONCE(meta_len > skb_headroom(skb))) {
+		skb_dump("skb_data_move: ", skb, true);
 		skb_metadata_clear(skb);
 		goto no_metadata;
 	}

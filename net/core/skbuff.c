@@ -1284,7 +1284,7 @@ void skb_dump(const char *level, const struct sk_buff *skb, bool full_pkt)
 
 	printk("%sskb len=%u headroom=%u headlen=%u tailroom=%u\n"
 	       "mac=(%d,%d) mac_len=%u net=(%d,%d) trans=%d\n"
-	       "shinfo(txflags=%u nr_frags=%u gso(size=%hu type=%u segs=%hu))\n"
+	       "shinfo(txflags=%u nr_frags=%u gso(size=%hu type=%u segs=%hu) meta(end:%hu, len:%hhu))\n"
 	       "csum(0x%x start=%u offset=%u ip_summed=%u complete_sw=%u valid=%u level=%u)\n"
 	       "hash(0x%x sw=%u l4=%u) proto=0x%04x pkttype=%u iif=%d\n"
 	       "priority=0x%x mark=0x%x alloc_cpu=%u vlan_all=0x%x\n"
@@ -1298,6 +1298,7 @@ void skb_dump(const char *level, const struct sk_buff *skb, bool full_pkt)
 	       has_trans ? skb->transport_header : -1,
 	       sh->tx_flags, sh->nr_frags,
 	       sh->gso_size, sh->gso_type, sh->gso_segs,
+	       sh->meta_end, sh->meta_len,
 	       skb->csum, skb->csum_start, skb->csum_offset, skb->ip_summed,
 	       skb->csum_complete_sw, skb->csum_valid, skb->csum_level,
 	       skb->hash, skb->sw_hash, skb->l4_hash,
