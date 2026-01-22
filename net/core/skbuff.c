@@ -5107,6 +5107,9 @@ static const u8 skb_ext_type_len[] = {
 #if IS_ENABLED(CONFIG_INET_PSP)
 	[SKB_EXT_PSP] = SKB_EXT_CHUNKSIZEOF(struct psp_skb_ext),
 #endif
+#if IS_ENABLED(CONFIG_BPF_SKB_STORAGE)
+	[SKB_EXT_BPF_STORAGE] = SKB_EXT_CHUNKSIZEOF(struct bpf_skb_storage_ext),
+#endif
 };
 
 static __always_inline unsigned int skb_ext_total_length(void)

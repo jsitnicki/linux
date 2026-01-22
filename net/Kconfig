@@ -66,6 +66,17 @@ config SKB_DECRYPTED
 config SKB_EXTENSIONS
 	bool
 
+config BPF_SKB_STORAGE
+	bool "BPF local storage for sk_buff"
+	depends on BPF_SYSCALL
+	select SKB_EXTENSIONS
+	default y
+	help
+	  Enable BPF local storage for sk_buff objects. This allows BPF
+	  programs to associate arbitrary data with individual packets
+	  as they traverse the network stack. The storage is automatically
+	  freed when the sk_buff is freed.
+
 config NET_DEVMEM
 	def_bool y
 	select GENERIC_ALLOCATOR

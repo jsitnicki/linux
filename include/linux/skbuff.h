@@ -334,6 +334,14 @@ struct tc_skb_ext {
 };
 #endif
 
+#if IS_ENABLED(CONFIG_BPF_SKB_STORAGE)
+struct bpf_local_storage;
+
+struct bpf_skb_storage_ext {
+	struct bpf_local_storage __rcu *storage;
+};
+#endif
+
 struct sk_buff_head {
 	/* These two members must be first to match sk_buff. */
 	struct_group_tagged(sk_buff_list, list,
@@ -4988,6 +4996,9 @@ enum skb_ext_id {
 #endif
 #if IS_ENABLED(CONFIG_INET_PSP)
 	SKB_EXT_PSP,
+#endif
+#if IS_ENABLED(CONFIG_BPF_SKB_STORAGE)
+	SKB_EXT_BPF_STORAGE,
 #endif
 	SKB_EXT_NUM, /* must be last */
 };
