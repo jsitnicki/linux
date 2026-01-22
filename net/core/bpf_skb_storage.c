@@ -3,9 +3,57 @@
 
 #include <linux/types.h>
 #include <linux/bpf.h>
+#include <linux/bpf_local_storage.h>
 #include <linux/btf.h>
 #include <linux/btf_ids.h>
 #include <linux/skbuff.h>
+
+DEFINE_BPF_STORAGE_CACHE(skb_cache);
+
+static int notsupp_get_next_key(struct bpf_map *map, void *key, void *next_key)
+{
+	return -EOPNOTSUPP;
+}
+
+static void *notsupp_lookup_elem(struct bpf_map *map, void *key)
+{
+	return ERR_PTR(-EOPNOTSUPP);
+}
+
+static long notsupp_update_elem(struct bpf_map *map, void *key,
+				void *value, u64 flags)
+{
+	return -EOPNOTSUPP;
+}
+
+static long notsupp_delete_elem(struct bpf_map *map, void *key)
+{
+	return -EOPNOTSUPP;
+}
+
+static struct bpf_map *skb_storage_map_alloc(union bpf_attr *attr)
+{
+	return bpf_local_storage_map_alloc(attr, &skb_cache, true);
+}
+
+static void skb_storage_map_free(struct bpf_map *map)
+{
+	bpf_local_storage_map_free(map, &skb_cache, NULL);
+}
+
+const struct bpf_map_ops skb_storage_map_ops = {
+	.map_meta_equal = bpf_map_meta_equal,
+	.map_alloc_check = bpf_local_storage_map_alloc_check,
+	.map_alloc = skb_storage_map_alloc,
+	.map_free = skb_storage_map_free,
+	.map_get_next_key = notsupp_get_next_key,
+	.map_lookup_elem = notsupp_lookup_elem,
+	.map_update_elem = notsupp_update_elem,
+	.map_delete_elem = notsupp_delete_elem,
+	.map_check_btf = bpf_local_storage_map_check_btf,
+	.map_mem_usage = bpf_local_storage_map_mem_usage,
+	.map_btf_id = &bpf_local_storage_map_btf_id[0],
+};
 
 __bpf_kfunc_start_defs();
 
