@@ -1533,6 +1533,7 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old)
 	memcpy(new->cb, old->cb, sizeof(old->cb));
 	skb_dst_copy(new, old);
 	__skb_ext_copy(new, old);
+	bpf_skb_storage_clone(old, new);
 	__nf_copy(new, old, false);
 
 	/* Note : this field could be in the headers group.

@@ -64,6 +64,94 @@ void bpf_skb_storage_free(struct bpf_local_storage *storage)
 	bpf_local_storage_destroy(storage);
 }
 
+static struct bpf_local_storage_elem *
+bpf_skb_storage_clone_elem(struct bpf_skb_storage_ext *new_ext,
+			   struct bpf_local_storage_map *smap,
+			   struct bpf_local_storage_elem *selem)
+{
+	struct bpf_local_storage_elem *copy_selem;
+
+	copy_selem = bpf_selem_alloc(smap, new_ext, NULL, false, GFP_ATOMIC);
+	if (!copy_selem)
+		return NULL;
+
+	if (btf_record_has_field(smap->map.record, BPF_SPIN_LOCK))
+		copy_map_value_locked(&smap->map, SDATA(copy_selem)->data,
+				      SDATA(selem)->data, true);
+	else
+		copy_map_value(&smap->map, SDATA(copy_selem)->data,
+			       SDATA(selem)->data);
+
+	return copy_selem;
+}
+
+int bpf_skb_storage_clone(const struct sk_buff *skb, struct sk_buff *newskb)
+{
+	struct bpf_local_storage *new_storage = NULL;
+	struct bpf_local_storage *storage;
+	struct bpf_local_storage_elem *selem;
+	struct bpf_skb_storage_ext *ext, *new_ext;
+	int ret = 0;
+
+	ext = skb_ext_find(skb, SKB_EXT_BPF_STORAGE);
+	if (!ext)
+		return 0;
+
+	rcu_read_lock();
+	storage = rcu_dereference(ext->storage);
+	if (!storage || hlist_empty(&storage->list)) {
+		rcu_read_unlock();
+		return 0;
+	}
+
+	new_ext = skb_ext_add(newskb, SKB_EXT_BPF_STORAGE);
+	if (!new_ext) {
+		rcu_read_unlock();
+		return -ENOMEM;
+	}
+	new_ext->storage = NULL;
+
+	hlist_for_each_entry_rcu(selem, &storage->list, snode) {
+		struct bpf_local_storage_elem *copy_selem;
+		struct bpf_local_storage_map *smap;
+		struct bpf_map *map;
+
+		smap = rcu_dereference(SDATA(selem)->smap);
+		if (!(smap->map.map_flags & BPF_F_CLONE))
+			continue;
+
+		map = bpf_map_inc_not_zero(&smap->map);
+		if (IS_ERR(map))
+			continue;
+
+		copy_selem = bpf_skb_storage_clone_elem(new_ext, smap, selem);
+		if (!copy_selem) {
+			ret = -ENOMEM;
+			bpf_map_put(map);
+			goto out;
+		}
+
+		if (new_storage) {
+			bpf_selem_link_map(smap, copy_selem);
+			bpf_selem_link_storage_nolock(new_storage, copy_selem);
+		} else {
+			ret = bpf_local_storage_alloc(new_ext, smap, copy_selem,
+						      GFP_ATOMIC);
+			if (ret) {
+				bpf_selem_free(copy_selem, true);
+				bpf_map_put(map);
+				goto out;
+			}
+			new_storage = rcu_dereference(copy_selem->local_storage);
+		}
+		bpf_map_put(map);
+	}
+
+out:
+	rcu_read_unlock();
+	return ret;
+}
+
 static int notsupp_get_next_key(struct bpf_map *map, void *key, void *next_key)
 {
 	return -EOPNOTSUPP;
