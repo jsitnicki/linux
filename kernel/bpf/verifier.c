@@ -12485,6 +12485,7 @@ enum special_kfunc_type {
 	KF_bpf_arena_free_pages,
 	KF_bpf_arena_reserve_pages,
 	KF_bpf_session_is_return,
+	KF_bpf_skb_storage_get,
 };
 
 BTF_ID_LIST(special_kfunc_list)
@@ -12563,6 +12564,11 @@ BTF_ID(func, bpf_arena_alloc_pages)
 BTF_ID(func, bpf_arena_free_pages)
 BTF_ID(func, bpf_arena_reserve_pages)
 BTF_ID(func, bpf_session_is_return)
+#ifdef CONFIG_BPF_SKB_STORAGE
+BTF_ID(func, bpf_skb_storage_get)
+#else
+BTF_ID_UNUSED
+#endif
 
 static bool is_task_work_add_kfunc(u32 func_id)
 {
@@ -14008,6 +14014,12 @@ static int check_special_kfunc(struct bpf_verifier_env *env, struct bpf_kfunc_ca
 		 * because packet slices are not refcounted (see
 		 * dynptr_type_refcounted)
 		 */
+	} else if (meta->func_id == special_kfunc_list[KF_bpf_skb_storage_get]) {
+		mark_reg_known_zero(env, regs, BPF_REG_0);
+		regs[BPF_REG_0].type = PTR_TO_MAP_VALUE;
+		regs[BPF_REG_0].map_ptr = meta->map.ptr;
+		regs[BPF_REG_0].map_uid = meta->map.uid;
+		/* PTR_MAYBE_NULL will be added when is_kfunc_ret_null is checked */
 	} else {
 		return 0;
 	}

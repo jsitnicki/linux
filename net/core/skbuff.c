@@ -78,6 +78,7 @@
 #include <net/mpls.h>
 #include <net/mptcp.h>
 #include <net/mctp.h>
+#include <net/bpf_skb_storage.h>
 #include <net/page_pool/helpers.h>
 #include <net/psp/types.h>
 #include <net/dropreason.h>
@@ -7201,6 +7202,15 @@ free_now:
 #ifdef CONFIG_MCTP_FLOWS
 	if (__skb_ext_exist(ext, SKB_EXT_MCTP))
 		skb_ext_put_mctp(skb_ext_get_ptr(ext, SKB_EXT_MCTP));
+#endif
+#if IS_ENABLED(CONFIG_BPF_SKB_STORAGE)
+	if (__skb_ext_exist(ext, SKB_EXT_BPF_STORAGE)) {
+		struct bpf_skb_storage_ext *bpf_ext;
+
+		bpf_ext = skb_ext_get_ptr(ext, SKB_EXT_BPF_STORAGE);
+		if (bpf_ext->storage)
+			bpf_skb_storage_free(bpf_ext->storage);
+	}
 #endif
 
 	kmem_cache_free(skbuff_ext_cache, ext);
