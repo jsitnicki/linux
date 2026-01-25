@@ -6,6 +6,7 @@
 #include <linux/bpf_local_storage.h>
 #include <linux/btf.h>
 #include <linux/btf_ids.h>
+#include <linux/filter.h>
 #include <linux/skbuff.h>
 #include <net/bpf_skb_storage.h>
 
@@ -296,6 +297,23 @@ __bpf_kfunc int bpf_skb_storage_delete(struct bpf_map *map, struct sk_buff *skb)
 	return ret;
 }
 
+/**
+ * bpf_sock_ops_skb() - Get the skb from a sock_ops context
+ * @skops: sock_ops context from BPF_PROG_TYPE_SOCK_OPS program
+ *
+ * Returns the skb associated with the sock_ops callback, if available.
+ * The skb is only available for certain sock_ops callbacks such as
+ * BPF_SOCK_OPS_PARSE_HDR_OPT_CB and BPF_SOCK_OPS_HDR_OPT_LEN_CB.
+ *
+ * Return: Pointer to skb on success, NULL if no skb is available
+ */
+__bpf_kfunc struct sk_buff *bpf_sock_ops_skb(struct bpf_sock_ops *ctx)
+{
+	struct bpf_sock_ops_kern *sk_ops = (typeof(sk_ops))ctx;
+
+	return sk_ops->skb;
+}
+
 __bpf_kfunc_end_defs();
 
 BTF_KFUNCS_START(bpf_skb_storage_kfunc_ids)
@@ -303,9 +321,20 @@ BTF_ID_FLAGS(func, bpf_skb_storage_get, KF_RET_NULL)
 BTF_ID_FLAGS(func, bpf_skb_storage_delete)
 BTF_KFUNCS_END(bpf_skb_storage_kfunc_ids)
 
+BTF_KFUNCS_START(bpf_sock_ops_skb_kfunc_ids)
+BTF_ID_FLAGS(func, bpf_skb_storage_get, KF_RET_NULL)
+BTF_ID_FLAGS(func, bpf_skb_storage_delete)
+BTF_ID_FLAGS(func, bpf_sock_ops_skb, KF_RET_NULL)
+BTF_KFUNCS_END(bpf_sock_ops_skb_kfunc_ids)
+
 static const struct btf_kfunc_id_set bpf_skb_storage_kfunc_set = {
 	.owner = THIS_MODULE,
 	.set = &bpf_skb_storage_kfunc_ids,
+};
+
+static const struct btf_kfunc_id_set bpf_sock_ops_skb_kfunc_set = {
+	.owner = THIS_MODULE,
+	.set = &bpf_sock_ops_skb_kfunc_ids,
 };
 
 static int __init bpf_skb_storage_kfunc_init(void)
@@ -332,6 +361,8 @@ static int __init bpf_skb_storage_kfunc_init(void)
 					       &bpf_skb_storage_kfunc_set);
 	ret = ret ?: register_btf_kfunc_id_set(BPF_PROG_TYPE_NETFILTER,
 					       &bpf_skb_storage_kfunc_set);
+	ret = ret ?: register_btf_kfunc_id_set(BPF_PROG_TYPE_SOCK_OPS,
+					       &bpf_sock_ops_skb_kfunc_set);
 	return ret;
 }
 late_initcall(bpf_skb_storage_kfunc_init);
