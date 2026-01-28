@@ -6225,7 +6225,7 @@ void skb_scrub_packet(struct sk_buff *skb, bool xnet)
 	skb->skb_iif = 0;
 	skb->ignore_df = 0;
 	skb_dst_drop(skb);
-	skb_ext_reset(skb);
+	skb_ext_reset_xnet(skb, xnet);
 	nf_reset_ct(skb);
 	nf_reset_trace(skb);
 

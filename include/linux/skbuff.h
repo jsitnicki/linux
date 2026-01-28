@@ -5091,9 +5091,29 @@ static inline bool skb_has_extensions(struct sk_buff *skb)
 {
 	return unlikely(skb->active_extensions);
 }
+
+static inline void skb_ext_reset_xnet(struct sk_buff *skb, bool xnet)
+{
+	u8 ext_keep = 0;
+
+	if (!xnet)
+		skb_ext_reset(skb);
+	if (!skb_has_extensions(skb))
+		return;
+
+#if IS_ENABLED(CONFIG_BPF_SKB_STORAGE)
+	ext_keep |= skb_ext_exist(skb, SKB_EXT_BPF_STORAGE) ? 1 << SKB_EXT_BPF_STORAGE : 0;
+#endif
+	while (skb->active_extensions & ~ext_keep) {
+		int id = __ffs(skb->active_extensions & ~ext_keep);
+
+		__skb_ext_del(skb, id);
+	}
+}
 #else
 static inline void skb_ext_put(struct sk_buff *skb) {}
 static inline void skb_ext_reset(struct sk_buff *skb) {}
+static inline void skb_ext_reset_xnet(struct sk_buff *skb, bool xnet) {}
 static inline void skb_ext_del(struct sk_buff *skb, int unused) {}
 static inline void __skb_ext_copy(struct sk_buff *d, const struct sk_buff *s) {}
 static inline void skb_ext_copy(struct sk_buff *dst, const struct sk_buff *s) {}
